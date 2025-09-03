@@ -84,3 +84,64 @@ TEST_CASE("Position functionality") {
         CHECK(pos1.distanceTo(pos2) == doctest::Approx(5.0f));
     }
 }
+
+// Test implementation of GameThing for testing purposes
+class TestGameThing : public GameThing {
+public:
+    TestGameThing(const Position& pos = Position(0, 0)) : GameThing(pos) {}
+    
+    void update(float deltaTime) override {
+        lastUpdateDelta = deltaTime;
+    }
+    
+    void draw() const override {
+        drawCallCount++;
+    }
+    
+    // Test helpers
+    float lastUpdateDelta = 0.0f;
+    mutable int drawCallCount = 0;
+};
+
+/**
+ * @brief GameThing base class tests
+ */
+TEST_CASE("GameThing functionality") {
+    SUBCASE("Constructor sets position and active state") {
+        Position startPos(10, 20);
+        TestGameThing thing(startPos);
+        
+        CHECK(thing.getPosition() == startPos);
+        CHECK(thing.isAlive() == true);
+    }
+    
+    SUBCASE("Can set and get position") {
+        TestGameThing thing;
+        Position newPos(15, 25);
+        
+        thing.setPosition(newPos);
+        CHECK(thing.getPosition() == newPos);
+    }
+    
+    SUBCASE("Invalid position setting is ignored") {
+        TestGameThing thing(Position(10, 10));
+        Position originalPos = thing.getPosition();
+        
+        Position invalidPos(-5, 100);
+        thing.setPosition(invalidPos);
+        
+        CHECK(thing.getPosition() == originalPos);
+    }
+    
+    SUBCASE("Virtual function calls work") {
+        TestGameThing thing;
+        float testDelta = 0.016f;
+        
+        thing.update(testDelta);
+        CHECK(thing.lastUpdateDelta == testDelta);
+        
+        CHECK(thing.drawCallCount == 0);
+        thing.draw();
+        CHECK(thing.drawCallCount == 1);
+    }
+}
