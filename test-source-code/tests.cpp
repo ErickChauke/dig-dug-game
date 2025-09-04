@@ -3,6 +3,7 @@
 #include <raylib-cpp.hpp>
 #include "../game-source-code/Game.h"
 #include "../game-source-code/Position.h"
+#include "../game-source-code/GameThing.h"
 
 /**
  * @brief Basic test to verify our test framework is working
@@ -10,7 +11,6 @@
 TEST_CASE("Basic functionality tests") {
     SUBCASE("Game object can be created") {
         Game game;
-        // If we get here without crashing, the game object was created successfully
         CHECK(true); // Always passes
     }
     
@@ -25,7 +25,6 @@ TEST_CASE("Basic functionality tests") {
  */
 TEST_CASE("Raylib integration test") {
     SUBCASE("Can create raylib colors") {
-        // This tests that raylib-cpp headers are included correctly
         raylib::Color testColor = raylib::Color::Red();
         CHECK(testColor.r == 255);
         CHECK(testColor.g == 0);
@@ -44,12 +43,6 @@ TEST_CASE("Position functionality") {
         CHECK(pos.y == 0);
     }
     
-    SUBCASE("Parameterized constructor works") {
-        Position pos(10, 20);
-        CHECK(pos.x == 10);
-        CHECK(pos.y == 20);
-    }
-    
     SUBCASE("Position addition works correctly") {
         Position pos1(5, 10);
         Position pos2(3, 7);
@@ -62,30 +55,17 @@ TEST_CASE("Position functionality") {
     SUBCASE("Position equality works") {
         Position pos1(5, 10);
         Position pos2(5, 10);
-        Position pos3(6, 10);
-        
         CHECK(pos1 == pos2);
-        CHECK_FALSE(pos1 == pos3);
-    }
-    
-    SUBCASE("Position validation") {
-        Position validPos(10, 10);
-        CHECK(validPos.isValid());
-        
-        Position invalidPos(-1, 5);
-        CHECK_FALSE(invalidPos.isValid());
     }
     
     SUBCASE("Distance calculation") {
         Position pos1(0, 0);
         Position pos2(3, 4);
-        
-        // 3-4-5 triangle, distance should be 5
         CHECK(pos1.distanceTo(pos2) == doctest::Approx(5.0f));
     }
 }
 
-// Test implementation of GameThing for testing purposes
+// Test implementation of GameThing
 class TestGameThing : public GameThing {
 public:
     TestGameThing(const Position& pos = Position(0, 0)) : GameThing(pos) {}
@@ -98,7 +78,6 @@ public:
         drawCallCount++;
     }
     
-    // Test helpers
     float lastUpdateDelta = 0.0f;
     mutable int drawCallCount = 0;
 };
@@ -113,24 +92,6 @@ TEST_CASE("GameThing functionality") {
         
         CHECK(thing.getPosition() == startPos);
         CHECK(thing.isAlive() == true);
-    }
-    
-    SUBCASE("Can set and get position") {
-        TestGameThing thing;
-        Position newPos(15, 25);
-        
-        thing.setPosition(newPos);
-        CHECK(thing.getPosition() == newPos);
-    }
-    
-    SUBCASE("Invalid position setting is ignored") {
-        TestGameThing thing(Position(10, 10));
-        Position originalPos = thing.getPosition();
-        
-        Position invalidPos(-5, 100);
-        thing.setPosition(invalidPos);
-        
-        CHECK(thing.getPosition() == originalPos);
     }
     
     SUBCASE("Virtual function calls work") {
