@@ -11,41 +11,29 @@ bool Projectile::isExpired() const {
 void Projectile::moveUp() {
     Position newPos = location;
     newPos.y--;
-    if (newPos.isValid()) {
-        location = newPos;
-    } else {
-        setActive(false);
-    }
+    if (newPos.isValid()) location = newPos;
+    else setActive(false);
 }
 
 void Projectile::moveDown() {
     Position newPos = location;
     newPos.y++;
-    if (newPos.isValid()) {
-        location = newPos;
-    } else {
-        setActive(false);
-    }
+    if (newPos.isValid()) location = newPos;
+    else setActive(false);
 }
 
 void Projectile::moveLeft() {
     Position newPos = location;
     newPos.x--;
-    if (newPos.isValid()) {
-        location = newPos;
-    } else {
-        setActive(false);
-    }
+    if (newPos.isValid()) location = newPos;
+    else setActive(false);
 }
 
 void Projectile::moveRight() {
     Position newPos = location;
     newPos.x++;
-    if (newPos.isValid()) {
-        location = newPos;
-    } else {
-        setActive(false);
-    }
+    if (newPos.isValid()) location = newPos;
+    else setActive(false);
 }
 
 Position Projectile::getPosition() const {
@@ -58,23 +46,19 @@ raylib::Rectangle Projectile::getBounds() const {
 }
 
 void Projectile::onCollision(const CanCollide& other) {
-    // Projectile is destroyed on collision
     setActive(false);
 }
 
 void Projectile::update(float deltaTime) {
     timeAlive += deltaTime;
-    
     if (timeAlive >= maxLifetime) {
         setActive(false);
         return;
     }
     
-    // Move projectile at regular intervals
     static float moveTimer = 0.0f;
     moveTimer += deltaTime;
-    
-    if (moveTimer >= 0.1f) { // Move every 0.1 seconds
+    if (moveTimer >= 0.1f) {
         moveTimer = 0.0f;
         moveInDirection();
     }
@@ -82,21 +66,17 @@ void Projectile::update(float deltaTime) {
 
 void Projectile::draw() const {
     Position pixelPos = location.toPixels();
-    
-    // Draw harpoon as white/yellow projectile
     DrawRectangle(pixelPos.x + 3, pixelPos.y + 3, 
-                 Position::BLOCK_SIZE - 6, Position::BLOCK_SIZE - 6,
-                 WHITE);
+                 Position::BLOCK_SIZE - 6, Position::BLOCK_SIZE - 6, WHITE);
     DrawRectangle(pixelPos.x + 4, pixelPos.y + 4, 
-                 Position::BLOCK_SIZE - 8, Position::BLOCK_SIZE - 8,
-                 YELLOW);
+                 Position::BLOCK_SIZE - 8, Position::BLOCK_SIZE - 8, YELLOW);
 }
 
 void Projectile::moveInDirection() {
     switch (direction) {
-        case UP:    moveUp(); break;
-        case DOWN:  moveDown(); break;
-        case LEFT:  moveLeft(); break;
+        case UP: moveUp(); break;
+        case DOWN: moveDown(); break;
+        case LEFT: moveLeft(); break;
         case RIGHT: moveRight(); break;
     }
 }

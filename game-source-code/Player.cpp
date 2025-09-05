@@ -146,3 +146,31 @@ Projectile::Direction Player::convertToProjectileDirection(Direction dir) const 
         default:    return Projectile::RIGHT;
     }
 }
+
+Projectile* Player::createProjectile() const {
+    if (isReloading()) return nullptr;
+    
+    Position projectilePos = location;
+    Projectile::Direction projDir = convertToProjectileDirection(facingDirection);
+    
+    switch (facingDirection) {
+        case UP: projectilePos.y--; break;
+        case DOWN: projectilePos.y++; break;
+        case LEFT: projectilePos.x--; break;
+        case RIGHT: projectilePos.x++; break;
+        default: break;
+    }
+    
+    if (!projectilePos.isValid()) return nullptr;
+    return new Projectile(projectilePos, projDir);
+}
+
+Projectile::Direction Player::convertToProjectileDirection(Direction dir) const {
+    switch (dir) {
+        case UP: return Projectile::UP;
+        case DOWN: return Projectile::DOWN;
+        case LEFT: return Projectile::LEFT;
+        case RIGHT: return Projectile::RIGHT;
+        default: return Projectile::RIGHT;
+    }
+}

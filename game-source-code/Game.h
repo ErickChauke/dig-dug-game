@@ -1,8 +1,10 @@
 #ifndef GAME_H
 #define GAME_H
 
+#include <memory>
 #include <raylib-cpp.hpp>
 #include <vector>
+#include "Projectile.h"
 #include <memory>
 #include "Player.h"
 #include "TerrainGrid.h"
@@ -17,6 +19,7 @@ private:
     Player player;
     TerrainGrid terrain;
     std::vector<Monster> monsters;
+    std::vector<std::unique_ptr<Projectile>> projectiles;
     std::vector<std::unique_ptr<Projectile>> projectiles;
     
     bool gameOver;
@@ -33,6 +36,8 @@ private:
     void drawGameOver() const;
     void spawnMonsters();
     void updateMonsters(float deltaTime);
+    void updateProjectiles(float deltaTime);
+    void checkProjectileCollisions();
     void updateProjectiles(float deltaTime);
     void checkCollisions();
     void checkProjectileCollisions();
