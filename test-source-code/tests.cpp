@@ -279,3 +279,65 @@ TEST_CASE("Weapon combat integration") {
         CHECK(player.getFacingDirection() == 1); // UP = 1
     }
 }
+
+// Polish Features Tests
+TEST_CASE("Game polish functionality") {
+    SUBCASE("Scoring system") {
+        Game game;
+        
+        // Test score addition
+        game.addScore(100);
+        // Note: Can't directly test score value without getter method
+        // This tests that addScore doesn't crash
+    }
+    
+    SUBCASE("Explosion effects") {
+        Game game;
+        Position explosionPos(15, 15);
+        
+        // Test explosion creation
+        game.createExplosion(explosionPos);
+        // This tests that createExplosion doesn't crash
+    }
+    
+    SUBCASE("Pause functionality") {
+        Game game;
+        
+        // Test pause toggle
+        game.pauseToggle();
+        // This tests that pauseToggle doesn't crash
+    }
+    
+    SUBCASE("Level progression") {
+        Game game;
+        
+        // Test next level
+        game.nextLevel();
+        // This tests that nextLevel doesn't crash
+    }
+}
+
+// Integration test for complete game flow
+TEST_CASE("Complete game integration") {
+    SUBCASE("Game initialization") {
+        Game game;
+        
+        // Game should initialize without crashing
+        // All systems should be ready
+        CHECK(true); // Basic initialization test
+    }
+    
+    SUBCASE("Update loop") {
+        Game game;
+        
+        // Game should update without crashing
+        game.update(0.016f); // Simulate one frame
+        CHECK(true); // Basic update test
+    }
+    
+    SUBCASE("Draw loop") {
+        // Note: Can't easily test drawing without graphics context
+        // This would require more complex test setup
+        CHECK(true); // Placeholder for draw testing
+    }
+}

@@ -200,7 +200,7 @@ void Game::drawHUD() const {
     
     // Monster info
     DrawText(TextFormat("Monsters: %d", (int)monsters.size()), 380, 10, 18, RED);
-    DrawText(TextFormat("Projectiles: %d", (int)projectiles.size()), 520, 10, 18, YELLOW);
+    DrawText(TextFormat("Harpoons: %d", (int)projectiles.size()), 520, 10, 18, YELLOW);
     
     // Player status
     Position playerPos = player.getPosition();
@@ -212,7 +212,7 @@ void Game::drawHUD() const {
         int xOffset = 10;
         for (size_t i = 0; i < monsters.size() && i < 5; ++i) {
             const char* stateText = "";
-            raylib::Color stateColor = WHITE;
+            Color stateColor = WHITE;
             switch (monsters[i].getBehaviorState()) {
                 case Monster::PATROLLING: 
                     stateText = "Patrol"; 
@@ -287,7 +287,7 @@ void Game::updateProjectiles(float deltaTime) {
     
     auto it = std::remove_if(projectiles.begin(), projectiles.end(),
         [](const std::unique_ptr<Projectile>& p) { 
-            return p->isExpired(); 
+            return p->isFinished(); 
         });
     projectiles.erase(it, projectiles.end());
 }
@@ -354,7 +354,7 @@ int Game::calculateLevelScore() const {
     return 500 + timeBonus;
 }
 
-raylib::Color Game::getScoreColor() const {
+Color Game::getScoreColor() const {
     if (score < 500) return WHITE;
     else if (score < 1500) return YELLOW;
     else if (score < 3000) return ORANGE;

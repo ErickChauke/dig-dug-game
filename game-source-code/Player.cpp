@@ -33,22 +33,9 @@ Projectile* Player::createProjectile() const {
         return nullptr;
     }
     
-    Position projectilePos = location;
+    // Create harpoon at player position (it will extend from here)
     Projectile::Direction projDir = convertToProjectileDirection(facingDirection);
-    
-    switch (facingDirection) {
-        case UP:    projectilePos.y--; break;
-        case DOWN:  projectilePos.y++; break;
-        case LEFT:  projectilePos.x--; break;
-        case RIGHT: projectilePos.x++; break;
-        default: break;
-    }
-    
-    if (!projectilePos.isValid()) {
-        return nullptr;
-    }
-    
-    return new Projectile(projectilePos, projDir);
+    return new Projectile(location, projDir);
 }
 
 void Player::moveUp() { moveInDirection(UP); }
@@ -81,7 +68,7 @@ void Player::digAt(Position spot) {
 
 void Player::fireWeapon() {
     if (!isReloading()) {
-        shootCooldown = 0.5f;
+        shootCooldown = 1.0f; // Longer cooldown for harpoon weapon
     }
 }
 
@@ -100,6 +87,15 @@ void Player::draw() const {
     DrawRectangle(pixelPos.x + 1, pixelPos.y + 1, 
                  Position::BLOCK_SIZE - 2, Position::BLOCK_SIZE - 2,
                  YELLOW);
+    
+    // Draw facing direction indicator
+    switch (facingDirection) {
+        case UP:    DrawRectangle(pixelPos.x + 4, pixelPos.y, 2, 3, ORANGE); break;
+        case DOWN:  DrawRectangle(pixelPos.x + 4, pixelPos.y + 7, 2, 3, ORANGE); break;
+        case LEFT:  DrawRectangle(pixelPos.x, pixelPos.y + 4, 3, 2, ORANGE); break;
+        case RIGHT: DrawRectangle(pixelPos.x + 7, pixelPos.y + 4, 3, 2, ORANGE); break;
+        default: break;
+    }
 }
 
 void Player::moveInDirection(Direction dir) {

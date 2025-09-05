@@ -62,7 +62,7 @@ private:
     bool allMonstersDestroyed() const;
     
     int calculateLevelScore() const;
-    raylib::Color getScoreColor() const;
+    Color getScoreColor() const;
 };
 
 #endif // GAME_H
