@@ -91,3 +91,103 @@ TEST_CASE("GameThing functionality") {
         CHECK(thing.drawCallCount == 1);
     }
 }
+
+// Player Tests
+TEST_CASE("Player functionality") {
+    SUBCASE("Player constructor and initial state") {
+        Position startPos(5, 8);
+        Player player(startPos);
+        
+        CHECK(player.getPosition() == startPos);
+        CHECK(player.isAlive() == true);
+        CHECK(player.isReloading() == false);
+    }
+    
+    SUBCASE("Player movement without input") {
+        Player player(Position(10, 10));
+        Position originalPos = player.getPosition();
+        
+        // Test basic movement methods directly
+        player.moveUp();
+        CHECK(player.getPosition().y == originalPos.y - 1);
+        
+        player.moveDown();
+        CHECK(player.getPosition().y == originalPos.y);
+        
+        player.moveLeft();
+        CHECK(player.getPosition().x == originalPos.x - 1);
+        
+        player.moveRight();
+        CHECK(player.getPosition().x == originalPos.x);
+    }
+    
+    SUBCASE("Player weapon system") {
+        Player player;
+        
+        CHECK(player.isReloading() == false);
+        player.fireWeapon();
+        CHECK(player.isReloading() == true);
+        
+        // Simulate time passing
+        player.update(0.6f); // More than 0.5s cooldown
+        CHECK(player.isReloading() == false);
+    }
+}
+
+// TerrainGrid Tests  
+TEST_CASE("TerrainGrid functionality") {
+    SUBCASE("TerrainGrid initialization") {
+        TerrainGrid terrain;
+        
+        // Should start with all blocks solid
+        CHECK(terrain.isBlockSolid(Position(0, 0)) == true);
+        CHECK(terrain.isBlockSolid(Position(40, 30)) == true);
+        
+        // Invalid positions should be considered solid
+        CHECK(terrain.isBlockSolid(Position(-1, 0)) == true);
+        CHECK(terrain.isBlockSolid(Position(100, 50)) == true);
+    }
+    
+    SUBCASE("TerrainGrid digging") {
+        TerrainGrid terrain;
+        Position testPos(20, 20);
+        
+        // Block should start solid
+        CHECK(terrain.isBlockSolid(testPos) == true);
+        
+        // Dig tunnel
+        terrain.digTunnelAt(testPos);
+        CHECK(terrain.isBlockSolid(testPos) == false);
+        
+        // Test boundary conditions (should not crash)
+        terrain.digTunnelAt(Position(-1, -1));
+        terrain.digTunnelAt(Position(1000, 1000));
+    }
+    
+    SUBCASE("TerrainGrid validation") {
+        TerrainGrid terrain;
+        
+        CHECK(terrain.isValidPosition(Position(0, 0)) == true);
+        CHECK(terrain.isValidPosition(Position(79, 59)) == true);
+        CHECK(terrain.isValidPosition(Position(-1, 0)) == false);
+        CHECK(terrain.isValidPosition(Position(0, -1)) == false);
+        CHECK(terrain.isValidPosition(Position(80, 60)) == false);
+    }
+}
+
+// Integration Tests
+TEST_CASE("Player-Terrain integration") {
+    SUBCASE("Player can dig terrain") {
+        TerrainGrid terrain;
+        Player player(Position(15, 15));
+        player.setTerrain(&terrain);
+        
+        Position testPos(15, 15);
+        CHECK(terrain.isBlockSolid(testPos) == true);
+        CHECK(player.canDigAt(testPos) == true);
+        
+        player.digAt(testPos);
+        CHECK(terrain.isBlockSolid(testPos) == false);
+        CHECK(player.canDigAt(testPos) == false);
+    }
+}
