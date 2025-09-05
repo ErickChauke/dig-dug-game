@@ -2,33 +2,24 @@
 #define GAME_H
 
 #include <raylib-cpp.hpp>
+#include "Player.h"
+#include "TerrainGrid.h"
 
 /**
  * @brief Main Game class that manages the entire Dig Dug game
- * 
- * This class handles the game loop, manages game state,
- * and coordinates between different game systems.
  */
 class Game {
 private:
     bool showSplashScreen;
     float splashTimer;
     
+    // Game objects
+    Player player;
+    TerrainGrid terrain;
+    
 public:
-    /**
-     * @brief Construct a new Game object
-     */
     Game();
-    
-    /**
-     * @brief Update game logic
-     * @param deltaTime Time since last frame in seconds
-     */
     void update(float deltaTime);
-    
-    /**
-     * @brief Draw all game elements
-     */
     void draw() const;
     
 private:

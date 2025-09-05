@@ -13,6 +13,7 @@ void Player::setTerrain(TerrainGrid* terrain) {
 void Player::handleInput() {
     movingDirection = NONE;
     
+    // Use global raylib input functions
     if (IsKeyDown(KEY_UP)) {
         moveUp();
     } else if (IsKeyDown(KEY_DOWN)) {

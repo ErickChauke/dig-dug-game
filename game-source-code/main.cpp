@@ -1,18 +1,18 @@
-#include <raylib.h>
+#include <raylib-cpp.hpp>
 #include "Game.h"
 
 int main() {
-    // Initialize window
-    InitWindow(800, 600, "Dig Dug Game - v1.0");
-    SetTargetFPS(60);
+    // Initialize window using raylib-cpp wrapper
+    raylib::Window window(800, 600, "Dig Dug Game - v1.0");
+    window.SetTargetFPS(60);
     
     // Create game instance
     Game game;
     
     // Main game loop
-    while (!WindowShouldClose()) {
+    while (!window.ShouldClose()) {
         // Update game logic
-        game.update(GetFrameTime());
+        game.update(window.GetFrameTime());
         
         // Draw everything
         BeginDrawing();
@@ -22,9 +22,6 @@ int main() {
         
         EndDrawing();
     }
-    
-    // Clean up
-    CloseWindow();
     
     return 0;
 }
