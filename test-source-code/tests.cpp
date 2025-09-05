@@ -191,3 +191,91 @@ TEST_CASE("Player-Terrain integration") {
         CHECK(player.canDigAt(testPos) == false);
     }
 }
+
+// Projectile Tests
+TEST_CASE("Projectile functionality") {
+    SUBCASE("Projectile constructor and initial state") {
+        Position startPos(15, 15);
+        Projectile projectile(startPos, Projectile::RIGHT);
+        
+        CHECK(projectile.getPosition() == startPos);
+        CHECK(projectile.isAlive() == true);
+        CHECK(projectile.getDirection() == Projectile::RIGHT);
+        CHECK(projectile.isExpired() == false);
+    }
+    
+    SUBCASE("Projectile movement") {
+        Projectile projectile(Position(10, 10), Projectile::UP);
+        Position originalPos = projectile.getPosition();
+        
+        projectile.moveUp();
+        CHECK(projectile.getPosition().y == originalPos.y - 1);
+        
+        projectile.moveDown();
+        CHECK(projectile.getPosition().y == originalPos.y);
+    }
+    
+    SUBCASE("Projectile expiration") {
+        Projectile projectile(Position(10, 10), Projectile::RIGHT);
+        
+        CHECK(projectile.isExpired() == false);
+        
+        // Simulate time passing beyond max lifetime
+        projectile.update(4.0f); // More than 3 second max lifetime
+        CHECK(projectile.isExpired() == true);
+    }
+    
+    SUBCASE("Projectile direction conversion") {
+        Position startPos(20, 20);
+        
+        Projectile upProj(startPos, Projectile::UP);
+        Projectile downProj(startPos, Projectile::DOWN);
+        Projectile leftProj(startPos, Projectile::LEFT);
+        Projectile rightProj(startPos, Projectile::RIGHT);
+        
+        CHECK(upProj.getDirection() == Projectile::UP);
+        CHECK(downProj.getDirection() == Projectile::DOWN);
+        CHECK(leftProj.getDirection() == Projectile::LEFT);
+        CHECK(rightProj.getDirection() == Projectile::RIGHT);
+    }
+}
+
+// Weapon Combat Integration Tests
+TEST_CASE("Weapon combat integration") {
+    SUBCASE("Player can create projectiles") {
+        Player player(Position(15, 15));
+        
+        // Player should not be reloading initially
+        CHECK(player.isReloading() == false);
+        
+        // Fire weapon to start cooldown
+        player.fireWeapon();
+        CHECK(player.isReloading() == true);
+        
+        // Should not be able to create projectile while reloading
+        Projectile* proj = player.createProjectile();
+        CHECK(proj == nullptr);
+        
+        // After cooldown, should be able to create projectile
+        player.update(0.6f); // More than 0.5s cooldown
+        CHECK(player.isReloading() == false);
+        
+        proj = player.createProjectile();
+        CHECK(proj != nullptr);
+        
+        if (proj) {
+            delete proj; // Clean up
+        }
+    }
+    
+    SUBCASE("Player facing direction affects projectile") {
+        Player player(Position(15, 15));
+        
+        // Move player to set facing direction
+        player.moveRight();
+        CHECK(player.getFacingDirection() == 4); // RIGHT = 4
+        
+        player.moveUp();
+        CHECK(player.getFacingDirection() == 1); // UP = 1
+    }
+}
