@@ -201,7 +201,7 @@ TEST_CASE("Projectile functionality") {
         CHECK(projectile.getPosition() == startPos);
         CHECK(projectile.isAlive() == true);
         CHECK(projectile.getDirection() == Projectile::RIGHT);
-        CHECK(projectile.isExpired() == false);
+        CHECK(projectile.isFinished() == false);
     }
     
     SUBCASE("Projectile movement") {
@@ -218,11 +218,11 @@ TEST_CASE("Projectile functionality") {
     SUBCASE("Projectile expiration") {
         Projectile projectile(Position(10, 10), Projectile::RIGHT);
         
-        CHECK(projectile.isExpired() == false);
+        CHECK(projectile.isFinished() == false);
         
         // Simulate time passing beyond max lifetime
-        projectile.update(4.0f); // More than 3 second max lifetime
-        CHECK(projectile.isExpired() == true);
+        projectile.update(2.0f); // Let harpoon extend and retract
+        CHECK(projectile.isFinished() == true);
     }
     
     SUBCASE("Projectile direction conversion") {
@@ -339,5 +339,46 @@ TEST_CASE("Complete game integration") {
         // Note: Can't easily test drawing without graphics context
         // This would require more complex test setup
         CHECK(true); // Placeholder for draw testing
+    }
+}
+
+// Updated Harpoon Tests
+TEST_CASE("Harpoon weapon functionality") {
+    SUBCASE("Harpoon states and behavior") {
+        Position startPos(15, 15);
+        Projectile harpoon(startPos, Projectile::RIGHT);
+        
+        CHECK(harpoon.getPosition() == startPos);
+        CHECK(harpoon.getState() == Projectile::EXTENDING);
+        CHECK(harpoon.getDirection() == Projectile::RIGHT);
+        CHECK(harpoon.isFinished() == false);
+    }
+    
+    SUBCASE("Harpoon extension and retraction") {
+        Position startPos(10, 10);
+        Projectile harpoon(startPos, Projectile::UP);
+        
+        // Initially extending
+        CHECK(harpoon.getState() == Projectile::EXTENDING);
+        
+        // Simulate extension
+        for (int i = 0; i < 3; ++i) {
+            harpoon.update(0.1f); // Trigger movement
+        }
+        
+        // Should still be extending or starting to retract
+        CHECK((harpoon.getState() == Projectile::EXTENDING || 
+               harpoon.getState() == Projectile::RETRACTING));
+    }
+    
+    SUBCASE("Harpoon hit detection") {
+        Position startPos(20, 20);
+        Projectile harpoon(startPos, Projectile::LEFT);
+        
+        CHECK(harpoon.hasHitTarget() == false);
+        
+        harpoon.markHit();
+        CHECK(harpoon.hasHitTarget() == true);
+        CHECK(harpoon.getState() == Projectile::RETRACTING);
     }
 }
