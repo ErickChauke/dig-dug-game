@@ -3,14 +3,9 @@
 
 #include "GameThing.h"
 #include "Interfaces.h"
+#include "Projectile.h"
 #include <raylib-cpp.hpp>
 
-/**
- * @brief The main player character - Dig Dug
- * 
- * Implements movement, tunnel digging, and shooting capabilities.
- * Responds to keyboard input and automatically digs tunnels.
- */
 class Player : public GameThing, public CanMove, public CanCollide, public CanDig, public CanShoot {
 private:
     enum Direction {
@@ -27,26 +22,16 @@ private:
     bool isMoving;
     float shootCooldown;
     
-    // Forward declare TerrainGrid to avoid circular dependency
     class TerrainGrid* worldTerrain;
     
 public:
-    /**
-     * @brief Construct Player at starting position
-     * @param startPos Starting world position
-     */
     Player(const Position& startPos = Position(10, 10));
     
-    /**
-     * @brief Set reference to world terrain for digging
-     * @param terrain Pointer to game world terrain
-     */
     void setTerrain(class TerrainGrid* terrain);
-    
-    /**
-     * @brief Handle keyboard input for movement and shooting
-     */
     void handleInput();
+    
+    Direction getFacingDirection() const { return facingDirection; }
+    Projectile* createProjectile() const;
     
     // CanMove interface implementation
     void moveUp() override;
@@ -75,6 +60,7 @@ private:
     void moveInDirection(Direction dir);
     void updateFacingDirection();
     void updateShooting(float deltaTime);
+    Projectile::Direction convertToProjectileDirection(Direction dir) const;
 };
 
 #endif // PLAYER_H

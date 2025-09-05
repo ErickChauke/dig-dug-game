@@ -16,7 +16,18 @@ void Game::update(float deltaTime) {
     } else if (!gameOver) {
         player.update(deltaTime);
         updateMonsters(deltaTime);
+        updateProjectiles(deltaTime);
+        
+        // Check if player fired weapon
+        if (IsKeyPressed(KEY_SPACE) && !player.isReloading()) {
+            Projectile* newProjectile = player.createProjectile();
+            if (newProjectile) {
+                projectiles.emplace_back(std::unique_ptr<Projectile>(newProjectile));
+            }
+        }
+        
         checkCollisions();
+        checkProjectileCollisions();
         
         if (allMonstersDestroyed()) {
             gameOver = true;
@@ -31,6 +42,7 @@ void Game::update(float deltaTime) {
             player = Player(Position(10, 10));
             player.setTerrain(&terrain);
             terrain = TerrainGrid();
+            projectiles.clear();
             spawnMonsters();
         }
     }
@@ -52,7 +64,7 @@ void Game::drawSplashScreen() const {
     
     DrawText("Arrow Keys: Move & Dig", 290, 350, 18, GREEN);
     DrawText("Spacebar: Fire Harpoon", 280, 380, 18, GREEN);
-    DrawText("Goal: Survive the monsters!", 270, 410, 18, RED);
+    DrawText("Goal: Destroy all monsters!", 270, 410, 18, RED);
     
     static int frameCounter = 0;
     frameCounter++;
@@ -70,13 +82,19 @@ void Game::drawGameplay() const {
         monster.draw();
     }
     
+    for (const auto& projectile : projectiles) {
+        projectile->draw();
+    }
+    
     player.draw();
     
     DrawText("Use Arrow Keys to Move and Dig!", 10, 10, 16, WHITE);
-    DrawText(TextFormat("Monsters left: %d", (int)monsters.size()), 10, 30, 14, RED);
+    DrawText("Spacebar: Fire Harpoon at Monsters!", 10, 30, 16, WHITE);
+    DrawText(TextFormat("Monsters left: %d", (int)monsters.size()), 10, 50, 14, RED);
+    DrawText(TextFormat("Projectiles: %d", (int)projectiles.size()), 10, 70, 14, YELLOW);
     
     Position playerPos = player.getPosition();
-    DrawText(TextFormat("Player: (%d, %d)", playerPos.x, playerPos.y), 10, 50, 14, YELLOW);
+    DrawText(TextFormat("Player: (%d, %d)", playerPos.x, playerPos.y), 10, 90, 14, GREEN);
 }
 
 void Game::drawGameOver() const {
@@ -84,13 +102,16 @@ void Game::drawGameOver() const {
     for (const auto& monster : monsters) {
         monster.draw();
     }
+    for (const auto& projectile : projectiles) {
+        projectile->draw();
+    }
     player.draw();
     
     DrawRectangle(0, 0, 800, 600, ColorAlpha(BLACK, 0.7f));
     
     if (playerWon) {
         DrawText("VICTORY!", 320, 250, 40, GREEN);
-        DrawText("You survived all monsters!", 270, 300, 20, WHITE);
+        DrawText("All monsters destroyed!", 270, 300, 20, WHITE);
     } else {
         DrawText("GAME OVER", 300, 250, 40, RED);
         DrawText("You were caught!", 290, 300, 20, WHITE);
@@ -115,6 +136,19 @@ void Game::updateMonsters(float deltaTime) {
     }
 }
 
+void Game::updateProjectiles(float deltaTime) {
+    for (auto& projectile : projectiles) {
+        projectile->update(deltaTime);
+    }
+    
+    // Remove expired projectiles
+    projectiles.erase(
+        std::remove_if(projectiles.begin(), projectiles.end(),
+                      [](const std::unique_ptr<Projectile>& p) { return p->isExpired(); }),
+        projectiles.end()
+    );
+}
+
 void Game::checkCollisions() {
     Position playerPos = player.getPosition();
     
@@ -125,6 +159,30 @@ void Game::checkCollisions() {
             return;
         }
         ++it;
+    }
+}
+
+void Game::checkProjectileCollisions() {
+    for (auto projIt = projectiles.begin(); projIt != projectiles.end(); ) {
+        bool projectileHit = false;
+        Position projPos = (*projIt)->getPosition();
+        
+        for (auto monsterIt = monsters.begin(); monsterIt != monsters.end(); ) {
+            if (monsterIt->getPosition() == projPos) {
+                // Monster hit by projectile - destroy both
+                monsterIt = monsters.erase(monsterIt);
+                projectileHit = true;
+                break;
+            } else {
+                ++monsterIt;
+            }
+        }
+        
+        if (projectileHit) {
+            projIt = projectiles.erase(projIt);
+        } else {
+            ++projIt;
+        }
     }
 }
 

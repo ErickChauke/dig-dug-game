@@ -13,7 +13,6 @@ void Player::setTerrain(TerrainGrid* terrain) {
 void Player::handleInput() {
     movingDirection = NONE;
     
-    // Use global raylib input functions
     if (IsKeyDown(KEY_UP)) {
         moveUp();
     } else if (IsKeyDown(KEY_DOWN)) {
@@ -27,6 +26,31 @@ void Player::handleInput() {
     if (IsKeyPressed(KEY_SPACE)) {
         fireWeapon();
     }
+}
+
+Projectile* Player::createProjectile() const {
+    if (isReloading()) {
+        return nullptr;
+    }
+    
+    // Create projectile in front of player
+    Position projectilePos = location;
+    Projectile::Direction projDir = convertToProjectileDirection(facingDirection);
+    
+    // Spawn projectile one block in facing direction
+    switch (facingDirection) {
+        case UP:    projectilePos.y--; break;
+        case DOWN:  projectilePos.y++; break;
+        case LEFT:  projectilePos.x--; break;
+        case RIGHT: projectilePos.x++; break;
+        default: break;
+    }
+    
+    if (!projectilePos.isValid()) {
+        return nullptr;
+    }
+    
+    return new Projectile(projectilePos, projDir);
 }
 
 void Player::moveUp() { moveInDirection(UP); }
@@ -44,7 +68,7 @@ raylib::Rectangle Player::getBounds() const {
 }
 
 void Player::onCollision(const CanCollide& other) {
-    // TODO: Handle collision with monsters
+    // Handle collision with monsters
 }
 
 bool Player::canDigAt(Position spot) const {
@@ -110,5 +134,15 @@ void Player::updateShooting(float deltaTime) {
         if (shootCooldown < 0.0f) {
             shootCooldown = 0.0f;
         }
+    }
+}
+
+Projectile::Direction Player::convertToProjectileDirection(Direction dir) const {
+    switch (dir) {
+        case UP:    return Projectile::UP;
+        case DOWN:  return Projectile::DOWN;
+        case LEFT:  return Projectile::LEFT;
+        case RIGHT: return Projectile::RIGHT;
+        default:    return Projectile::RIGHT;
     }
 }
