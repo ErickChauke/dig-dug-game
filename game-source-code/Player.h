@@ -1,6 +1,5 @@
 #ifndef PLAYER_H
 #define PLAYER_H
-#include "Projectile.h"
 
 #include "GameThing.h"
 #include "Interfaces.h"
@@ -30,9 +29,6 @@ public:
     
     void setTerrain(class TerrainGrid* terrain);
     void handleInput();
-
-    Direction getFacingDirection() const { return facingDirection; }
-    Projectile* createProjectile() const;
     
     Direction getFacingDirection() const { return facingDirection; }
     Projectile* createProjectile() const;
@@ -64,7 +60,6 @@ private:
     void moveInDirection(Direction dir);
     void updateFacingDirection();
     void updateShooting(float deltaTime);
-    Projectile::Direction convertToProjectileDirection(Direction dir) const;
     Projectile::Direction convertToProjectileDirection(Direction dir) const;
 };
 

@@ -85,9 +85,6 @@ void Game::drawGameplay() const {
         projectile->draw();
     }
     
-    for (const auto& projectile : projectiles) {
-        projectile->draw();
-    }
     player.draw();
     
     DrawText("Use Arrow Keys to Move and Dig!", 10, 10, 16, WHITE);
@@ -103,9 +100,6 @@ void Game::drawGameOver() const {
     terrain.draw();
     for (const auto& monster : monsters) {
         monster.draw();
-    }
-    for (const auto& projectile : projectiles) {
-        projectile->draw();
     }
     for (const auto& projectile : projectiles) {
         projectile->draw();
@@ -147,11 +141,11 @@ void Game::updateProjectiles(float deltaTime) {
     }
     
     // Remove expired projectiles
-    projectiles.erase(
-        std::remove_if(projectiles.begin(), projectiles.end(),
-                      [](const std::unique_ptr<Projectile>& p) { return p->isExpired(); }),
-        projectiles.end()
-    );
+    auto it = std::remove_if(projectiles.begin(), projectiles.end(),
+        [](const std::unique_ptr<Projectile>& p) { 
+            return p->isExpired(); 
+        });
+    projectiles.erase(it, projectiles.end());
 }
 
 void Game::checkCollisions() {
@@ -174,7 +168,6 @@ void Game::checkProjectileCollisions() {
         
         for (auto monsterIt = monsters.begin(); monsterIt != monsters.end(); ) {
             if (monsterIt->getPosition() == projPos) {
-                // Monster hit by projectile - destroy both
                 monsterIt = monsters.erase(monsterIt);
                 projectileHit = true;
                 break;
@@ -193,39 +186,4 @@ void Game::checkProjectileCollisions() {
 
 bool Game::allMonstersDestroyed() const {
     return monsters.empty();
-}
-
-void Game::updateProjectiles(float deltaTime) {
-    for (auto& projectile : projectiles) {
-        projectile->update(deltaTime);
-    }
-    
-    projectiles.erase(
-        std::remove_if(projectiles.begin(), projectiles.end(),
-                      [](const std::unique_ptr<Projectile>& p) { return p->isExpired(); }),
-        projectiles.end()
-    );
-}
-
-void Game::checkProjectileCollisions() {
-    for (auto projIt = projectiles.begin(); projIt != projectiles.end(); ) {
-        bool projectileHit = false;
-        Position projPos = (*projIt)->getPosition();
-        
-        for (auto monsterIt = monsters.begin(); monsterIt != monsters.end(); ) {
-            if (monsterIt->getPosition() == projPos) {
-                monsterIt = monsters.erase(monsterIt);
-                projectileHit = true;
-                break;
-            } else {
-                ++monsterIt;
-            }
-        }
-        
-        if (projectileHit) {
-            projIt = projectiles.erase(projIt);
-        } else {
-            ++projIt;
-        }
-    }
 }
