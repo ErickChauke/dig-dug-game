@@ -23,21 +23,46 @@ private:
     bool gameOver;
     bool playerWon;
     
+    // Enhanced features
+    int score;
+    int level;
+    int monstersKilled;
+    float gameTime;
+    bool isPaused;
+    
+    // Visual effects
+    std::vector<Position> explosionEffects;
+    float explosionTimer;
+    
 public:
     Game();
     void update(float deltaTime);
     void draw() const;
     
+    // New methods for enhanced features
+    void addScore(int points);
+    void createExplosion(const Position& pos);
+    void nextLevel();
+    void pauseToggle();
+    
 private:
     void drawSplashScreen() const;
     void drawGameplay() const;
     void drawGameOver() const;
+    void drawPauseScreen() const;
+    void drawHUD() const;
+    void drawExplosions() const;
+    
     void spawnMonsters();
     void updateMonsters(float deltaTime);
     void updateProjectiles(float deltaTime);
+    void updateExplosions(float deltaTime);
     void checkCollisions();
     void checkProjectileCollisions();
     bool allMonstersDestroyed() const;
+    
+    int calculateLevelScore() const;
+    raylib::Color getScoreColor() const;
 };
 
 #endif // GAME_H
