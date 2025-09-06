@@ -17,7 +17,7 @@ private:
     Position currentTip;
     int maxRange;
     int currentLength;
-    float speed;
+    float moveTimer;
     bool hitSomething;
     
 public:
@@ -39,14 +39,12 @@ public:
     void update(float deltaTime) override;
     void draw() const override;
     
-    // New harpoon-specific methods
     void startRetracting();
     void markHit();
     
 private:
     void extendHarpoon();
     void retractHarpoon();
-    Position getNextPosition() const;
 };
 
 #endif // PROJECTILE_H

@@ -1,3 +1,164 @@
+#!/bin/bash
+
+echo "=== FIXING DOUBLE SPACEBAR HANDLING ==="
+
+# Fix Player.cpp - REMOVE spacebar handling from player
+cat > Player.cpp << 'EOF'
+#include "Player.h"
+#include "TerrainGrid.h"
+#include <iostream>
+
+Player::Player(const Position& startPos) 
+    : GameThing(startPos), facingDirection(RIGHT), movingDirection(NONE),
+      moveSpeed(50.0f), isMoving(false), shootCooldown(0.0f), worldTerrain(nullptr) {
+}
+
+void Player::setTerrain(TerrainGrid* terrain) {
+    worldTerrain = terrain;
+}
+
+void Player::handleInput() {
+    movingDirection = NONE;
+    
+    if (IsKeyDown(KEY_UP)) {
+        moveUp();
+    } else if (IsKeyDown(KEY_DOWN)) {
+        moveDown();
+    } else if (IsKeyDown(KEY_LEFT)) {
+        moveLeft();
+    } else if (IsKeyDown(KEY_RIGHT)) {
+        moveRight();
+    }
+    
+    // REMOVED: spacebar handling - Game class will handle this
+}
+
+Projectile* Player::createProjectile() const {
+    if (isReloading()) {
+        std::cout << "Cannot create projectile - still reloading: " << shootCooldown << std::endl;
+        return nullptr;
+    }
+    
+    std::cout << "Creating harpoon at (" << location.x << ", " << location.y << ") facing " << facingDirection << std::endl;
+    
+    Projectile::Direction projDir = convertToProjectileDirection(facingDirection);
+    return new Projectile(location, projDir);
+}
+
+void Player::moveUp() { moveInDirection(UP); }
+void Player::moveDown() { moveInDirection(DOWN); }
+void Player::moveLeft() { moveInDirection(LEFT); }
+void Player::moveRight() { moveInDirection(RIGHT); }
+
+Position Player::getPosition() const {
+    return GameThing::getPosition();
+}
+
+raylib::Rectangle Player::getBounds() const {
+    Position pixelPos = location.toPixels();
+    return raylib::Rectangle(pixelPos.x, pixelPos.y, Position::BLOCK_SIZE, Position::BLOCK_SIZE);
+}
+
+void Player::onCollision(const CanCollide& other) {
+}
+
+bool Player::canDigAt(Position spot) const {
+    return worldTerrain && worldTerrain->isBlockSolid(spot);
+}
+
+void Player::digAt(Position spot) {
+    if (canDigAt(spot)) {
+        worldTerrain->digTunnelAt(spot);
+    }
+}
+
+void Player::fireWeapon() {
+    if (!isReloading()) {
+        std::cout << "Player: Starting reload cooldown" << std::endl;
+        shootCooldown = 1.0f;
+    }
+}
+
+bool Player::isReloading() const {
+    return shootCooldown > 0.0f;
+}
+
+void Player::update(float deltaTime) {
+    handleInput();
+    updateShooting(deltaTime);
+    updateFacingDirection();
+}
+
+void Player::draw() const {
+    Position pixelPos = location.toPixels();
+    
+    DrawRectangle(pixelPos.x + 1, pixelPos.y + 1, 
+                 Position::BLOCK_SIZE - 2, Position::BLOCK_SIZE - 2,
+                 YELLOW);
+    
+    switch (facingDirection) {
+        case UP:    DrawRectangle(pixelPos.x + 4, pixelPos.y, 2, 3, ORANGE); break;
+        case DOWN:  DrawRectangle(pixelPos.x + 4, pixelPos.y + 7, 2, 3, ORANGE); break;
+        case LEFT:  DrawRectangle(pixelPos.x, pixelPos.y + 4, 3, 2, ORANGE); break;
+        case RIGHT: DrawRectangle(pixelPos.x + 7, pixelPos.y + 4, 3, 2, ORANGE); break;
+        default: break;
+    }
+    
+    if (isReloading()) {
+        DrawCircle(pixelPos.x + Position::BLOCK_SIZE/2, 
+                   pixelPos.y - 5, 4, RED);
+        DrawText(TextFormat("%.1f", shootCooldown), pixelPos.x - 5, pixelPos.y - 20, 8, RED);
+    } else {
+        DrawText("READY", pixelPos.x - 8, pixelPos.y - 15, 8, GREEN);
+    }
+}
+
+void Player::moveInDirection(Direction dir) {
+    Position newPos = location;
+    
+    switch (dir) {
+        case UP:    newPos.y--; break;
+        case DOWN:  newPos.y++; break;
+        case LEFT:  newPos.x--; break;
+        case RIGHT: newPos.x++; break;
+        default: return;
+    }
+    
+    if (newPos.isValid()) {
+        location = newPos;
+        movingDirection = dir;
+        digAt(location);
+    }
+}
+
+void Player::updateFacingDirection() {
+    if (movingDirection != NONE) {
+        facingDirection = movingDirection;
+    }
+}
+
+void Player::updateShooting(float deltaTime) {
+    if (shootCooldown > 0.0f) {
+        shootCooldown -= deltaTime;
+        if (shootCooldown < 0.0f) {
+            shootCooldown = 0.0f;
+        }
+    }
+}
+
+Projectile::Direction Player::convertToProjectileDirection(Direction dir) const {
+    switch (dir) {
+        case UP:    return Projectile::UP;
+        case DOWN:  return Projectile::DOWN;
+        case LEFT:  return Projectile::LEFT;
+        case RIGHT: return Projectile::RIGHT;
+        default:    return Projectile::RIGHT;
+    }
+}
+EOF
+
+# Fix Game.cpp - Handle spacebar ONLY here
+cat > Game.cpp << 'EOF'
 #include "Game.h"
 #include <iostream>
 
@@ -307,3 +468,15 @@ int Game::calculateLevelScore() const {
 Color Game::getScoreColor() const {
     return YELLOW;
 }
+EOF
+
+echo "Building fixed version..."
+cd ../build && cmake --build . && cd ..
+
+echo ""
+echo "=== FIXED SPACEBAR HANDLING ==="
+echo "- Removed spacebar from Player class"
+echo "- Game class now exclusively handles harpoon creation"
+echo "- Should now see bright lime harpoons!"
+echo ""
+echo "Run: ./release/bin/Debug/game.exe"

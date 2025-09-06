@@ -1,6 +1,5 @@
 #include "Player.h"
 #include "TerrainGrid.h"
-#include <iostream>
 
 Player::Player(const Position& startPos) 
     : GameThing(startPos), facingDirection(RIGHT), movingDirection(NONE),
@@ -24,17 +23,17 @@ void Player::handleInput() {
         moveRight();
     }
     
-    // REMOVED: spacebar handling - Game class will handle this
+    if (IsKeyPressed(KEY_SPACE)) {
+        fireWeapon();
+    }
 }
 
 Projectile* Player::createProjectile() const {
     if (isReloading()) {
-        std::cout << "Cannot create projectile - still reloading: " << shootCooldown << std::endl;
         return nullptr;
     }
     
-    std::cout << "Creating harpoon at (" << location.x << ", " << location.y << ") facing " << facingDirection << std::endl;
-    
+    // Create harpoon at player position (it will extend from here)
     Projectile::Direction projDir = convertToProjectileDirection(facingDirection);
     return new Projectile(location, projDir);
 }
@@ -54,6 +53,7 @@ raylib::Rectangle Player::getBounds() const {
 }
 
 void Player::onCollision(const CanCollide& other) {
+    // Handle collision with monsters
 }
 
 bool Player::canDigAt(Position spot) const {
@@ -68,8 +68,7 @@ void Player::digAt(Position spot) {
 
 void Player::fireWeapon() {
     if (!isReloading()) {
-        std::cout << "Player: Starting reload cooldown" << std::endl;
-        shootCooldown = 1.0f;
+        shootCooldown = 1.0f; // Longer cooldown for harpoon weapon
     }
 }
 
@@ -85,25 +84,17 @@ void Player::update(float deltaTime) {
 
 void Player::draw() const {
     Position pixelPos = location.toPixels();
-    
     DrawRectangle(pixelPos.x + 1, pixelPos.y + 1, 
                  Position::BLOCK_SIZE - 2, Position::BLOCK_SIZE - 2,
                  YELLOW);
     
+    // Draw facing direction indicator
     switch (facingDirection) {
         case UP:    DrawRectangle(pixelPos.x + 4, pixelPos.y, 2, 3, ORANGE); break;
         case DOWN:  DrawRectangle(pixelPos.x + 4, pixelPos.y + 7, 2, 3, ORANGE); break;
         case LEFT:  DrawRectangle(pixelPos.x, pixelPos.y + 4, 3, 2, ORANGE); break;
         case RIGHT: DrawRectangle(pixelPos.x + 7, pixelPos.y + 4, 3, 2, ORANGE); break;
         default: break;
-    }
-    
-    if (isReloading()) {
-        DrawCircle(pixelPos.x + Position::BLOCK_SIZE/2, 
-                   pixelPos.y - 5, 4, RED);
-        DrawText(TextFormat("%.1f", shootCooldown), pixelPos.x - 5, pixelPos.y - 20, 8, RED);
-    } else {
-        DrawText("READY", pixelPos.x - 8, pixelPos.y - 15, 8, GREEN);
     }
 }
 

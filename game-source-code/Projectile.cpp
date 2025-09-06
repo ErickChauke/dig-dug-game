@@ -2,8 +2,8 @@
 
 Projectile::Projectile(const Position& startPos, Direction dir) 
     : GameThing(startPos), direction(dir), state(EXTENDING), 
-      startPosition(startPos), currentTip(startPos), maxRange(6), 
-      currentLength(0), speed(120.0f), hitSomething(false) {
+      startPosition(startPos), currentTip(startPos), maxRange(8), 
+      currentLength(0), moveTimer(0.0f), hitSomething(false) {
 }
 
 void Projectile::moveUp() {
@@ -12,7 +12,7 @@ void Projectile::moveUp() {
         newPos.y--;
         if (newPos.isValid() && currentLength < maxRange) {
             currentTip = newPos;
-            location = currentTip; // Update collision position to tip
+            location = currentTip;
             currentLength++;
         } else {
             startRetracting();
@@ -63,7 +63,7 @@ void Projectile::moveRight() {
 }
 
 Position Projectile::getPosition() const {
-    return currentTip; // Collision detection happens at the tip
+    return currentTip;
 }
 
 raylib::Rectangle Projectile::getBounds() const {
@@ -85,10 +85,9 @@ void Projectile::markHit() {
 }
 
 void Projectile::update(float deltaTime) {
-    static float moveTimer = 0.0f;
     moveTimer += deltaTime;
     
-    if (moveTimer >= 0.08f) { // Harpoon moves every 0.08 seconds (faster than old projectiles)
+    if (moveTimer >= 0.05f) { // Fast movement for visibility
         moveTimer = 0.0f;
         
         switch (state) {
@@ -99,37 +98,37 @@ void Projectile::update(float deltaTime) {
                 retractHarpoon();
                 break;
             case FINISHED:
-                // Do nothing, ready for cleanup
                 break;
         }
     }
 }
 
 void Projectile::draw() const {
-    // Draw the tethered harpoon as a line from start to tip
     Position startPixel = startPosition.toPixels();
     Position tipPixel = currentTip.toPixels();
     
-    // Draw the tether line
-    DrawLine(startPixel.x + Position::BLOCK_SIZE/2, 
-             startPixel.y + Position::BLOCK_SIZE/2,
-             tipPixel.x + Position::BLOCK_SIZE/2, 
-             tipPixel.y + Position::BLOCK_SIZE/2, 
-             YELLOW);
+    // SUPER VISIBLE TETHER LINE - THICK AND BRIGHT
+    DrawLineEx(Vector2{startPixel.x + Position::BLOCK_SIZE/2.0f, 
+                     startPixel.y + Position::BLOCK_SIZE/2.0f},
+               Vector2{tipPixel.x + Position::BLOCK_SIZE/2.0f, 
+                     tipPixel.y + Position::BLOCK_SIZE/2.0f}, 
+               4.0f, // Very thick line
+               LIME); // Bright green
     
-    // Draw the harpoon tip
+    // SUPER VISIBLE HARPOON TIP
     if (state == EXTENDING || state == RETRACTING) {
-        DrawRectangle(tipPixel.x + 2, tipPixel.y + 2, 
-                     Position::BLOCK_SIZE - 4, Position::BLOCK_SIZE - 4,
-                     WHITE);
+        // Large bright tip
+        DrawRectangle(tipPixel.x, tipPixel.y, 
+                     Position::BLOCK_SIZE, Position::BLOCK_SIZE,
+                     MAGENTA);
         
-        // Add a small indicator for the sharp tip
-        switch (direction) {
-            case UP:    DrawRectangle(tipPixel.x + 4, tipPixel.y, 2, 3, RED); break;
-            case DOWN:  DrawRectangle(tipPixel.x + 4, tipPixel.y + 7, 2, 3, RED); break;
-            case LEFT:  DrawRectangle(tipPixel.x, tipPixel.y + 4, 3, 2, RED); break;
-            case RIGHT: DrawRectangle(tipPixel.x + 7, tipPixel.y + 4, 3, 2, RED); break;
-        }
+        // Pulsing effect for even more visibility
+        static float pulse = 0.0f;
+        pulse += 0.2f;
+        int alpha = (int)(128 + 127 * sin(pulse));
+        DrawRectangle(tipPixel.x - 2, tipPixel.y - 2, 
+                     Position::BLOCK_SIZE + 4, Position::BLOCK_SIZE + 4,
+                     ColorAlpha(WHITE, alpha / 255.0f));
     }
 }
 
@@ -144,7 +143,6 @@ void Projectile::extendHarpoon() {
 
 void Projectile::retractHarpoon() {
     if (currentLength > 0) {
-        // Move tip back toward start position
         switch (direction) {
             case UP:    currentTip.y++; break;
             case DOWN:  currentTip.y--; break;
@@ -156,15 +154,4 @@ void Projectile::retractHarpoon() {
     } else {
         state = FINISHED;
     }
-}
-
-Position Projectile::getNextPosition() const {
-    Position next = currentTip;
-    switch (direction) {
-        case UP:    next.y--; break;
-        case DOWN:  next.y++; break;
-        case LEFT:  next.x--; break;
-        case RIGHT: next.x++; break;
-    }
-    return next;
 }
