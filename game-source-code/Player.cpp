@@ -4,7 +4,19 @@
 
 Player::Player(const Position& startPos) 
     : GameThing(startPos), facingDirection(RIGHT), movingDirection(NONE),
-      moveSpeed(50.0f), isMoving(false), shootCooldown(0.0f), worldTerrain(nullptr) {
+      moveSpeed(50.0f), baseMoveSpeed(50.0f), isMoving(false), 
+      shootCooldown(0.0f), baseShootCooldown(1.0f), 
+      harpoonRange(8), baseHarpoonRange(8), worldTerrain(nullptr) {
+    
+    // Initialize power-up effects
+    powerUps.speedBoost = false;
+    powerUps.extendedRange = false;
+    powerUps.rapidFire = false;
+    powerUps.invulnerable = false;
+    powerUps.speedBoostTimer = 0.0f;
+    powerUps.extendedRangeTimer = 0.0f;
+    powerUps.rapidFireTimer = 0.0f;
+    powerUps.invulnerableTimer = 0.0f;
 }
 
 void Player::setTerrain(TerrainGrid* terrain) {
@@ -23,20 +35,54 @@ void Player::handleInput() {
     } else if (IsKeyDown(KEY_RIGHT)) {
         moveRight();
     }
-    
-    // REMOVED: spacebar handling - Game class will handle this
 }
 
 Projectile* Player::createProjectile() const {
     if (isReloading()) {
-        std::cout << "Cannot create projectile - still reloading: " << shootCooldown << std::endl;
         return nullptr;
     }
     
-    std::cout << "Creating harpoon at (" << location.x << ", " << location.y << ") facing " << facingDirection << std::endl;
-    
     Projectile::Direction projDir = convertToProjectileDirection(facingDirection);
-    return new Projectile(location, projDir);
+    Projectile* harpoon = new Projectile(location, projDir);
+    
+    // Apply extended range if active
+    if (powerUps.extendedRange) {
+        // Projectile will need to be modified to accept range parameter
+        std::cout << "Extended range harpoon created!" << std::endl;
+    }
+    
+    return harpoon;
+}
+
+void Player::applyPowerUp(PowerUp::PowerUpType type, float duration) {
+    switch (type) {
+        case PowerUp::SPEED_BOOST:
+            powerUps.speedBoost = true;
+            powerUps.speedBoostTimer = duration;
+            moveSpeed = baseMoveSpeed * 1.5f;
+            std::cout << "Speed boost activated!" << std::endl;
+            break;
+            
+        case PowerUp::EXTENDED_RANGE:
+            powerUps.extendedRange = true;
+            powerUps.extendedRangeTimer = duration;
+            harpoonRange = baseHarpoonRange * 2;
+            std::cout << "Extended range activated!" << std::endl;
+            break;
+            
+        case PowerUp::RAPID_FIRE:
+            powerUps.rapidFire = true;
+            powerUps.rapidFireTimer = duration;
+            baseShootCooldown = 0.3f;
+            std::cout << "Rapid fire activated!" << std::endl;
+            break;
+            
+        case PowerUp::INVULNERABILITY:
+            powerUps.invulnerable = true;
+            powerUps.invulnerableTimer = duration;
+            std::cout << "Invulnerability activated!" << std::endl;
+            break;
+    }
 }
 
 void Player::moveUp() { moveInDirection(UP); }
@@ -54,6 +100,7 @@ raylib::Rectangle Player::getBounds() const {
 }
 
 void Player::onCollision(const CanCollide& other) {
+    // Handle collision with monsters (unless invulnerable)
 }
 
 bool Player::canDigAt(Position spot) const {
@@ -68,8 +115,7 @@ void Player::digAt(Position spot) {
 
 void Player::fireWeapon() {
     if (!isReloading()) {
-        std::cout << "Player: Starting reload cooldown" << std::endl;
-        shootCooldown = 1.0f;
+        shootCooldown = baseShootCooldown;
     }
 }
 
@@ -80,30 +126,71 @@ bool Player::isReloading() const {
 void Player::update(float deltaTime) {
     handleInput();
     updateShooting(deltaTime);
+    updatePowerUps(deltaTime);
     updateFacingDirection();
 }
 
 void Player::draw() const {
     Position pixelPos = location.toPixels();
     
+    // Base player color
+    raylib::Color playerColor = YELLOW;
+    
+    // Modify color based on power-ups
+    if (powerUps.invulnerable) {
+        // Flashing effect for invulnerability
+        static float flashTimer = 0.0f;
+        flashTimer += 0.1f;
+        if ((int)(flashTimer * 10) % 2 == 0) {
+            playerColor = ColorAlpha(GOLD, 0.7f);
+        }
+    } else if (powerUps.speedBoost) {
+        playerColor = ORANGE;
+    }
+    
     DrawRectangle(pixelPos.x + 1, pixelPos.y + 1, 
                  Position::BLOCK_SIZE - 2, Position::BLOCK_SIZE - 2,
-                 YELLOW);
+                 playerColor);
+    
+    // Facing direction indicator
+    raylib::Color dirColor = DARKBLUE;
+    if (powerUps.extendedRange) dirColor = LIME;
+    if (powerUps.rapidFire) dirColor = RED;
     
     switch (facingDirection) {
-        case UP:    DrawRectangle(pixelPos.x + 4, pixelPos.y, 2, 3, ORANGE); break;
-        case DOWN:  DrawRectangle(pixelPos.x + 4, pixelPos.y + 7, 2, 3, ORANGE); break;
-        case LEFT:  DrawRectangle(pixelPos.x, pixelPos.y + 4, 3, 2, ORANGE); break;
-        case RIGHT: DrawRectangle(pixelPos.x + 7, pixelPos.y + 4, 3, 2, ORANGE); break;
+        case UP:    DrawRectangle(pixelPos.x + 4, pixelPos.y, 2, 3, dirColor); break;
+        case DOWN:  DrawRectangle(pixelPos.x + 4, pixelPos.y + 7, 2, 3, dirColor); break;
+        case LEFT:  DrawRectangle(pixelPos.x, pixelPos.y + 4, 3, 2, dirColor); break;
+        case RIGHT: DrawRectangle(pixelPos.x + 7, pixelPos.y + 4, 3, 2, dirColor); break;
         default: break;
     }
     
+    // Power-up status indicators
+    int yOffset = -15;
+    if (powerUps.speedBoost) {
+        DrawText(TextFormat("SPEED %.1f", powerUps.speedBoostTimer), 
+                pixelPos.x - 10, pixelPos.y + yOffset, 8, ORANGE);
+        yOffset -= 10;
+    }
+    if (powerUps.extendedRange) {
+        DrawText(TextFormat("RANGE %.1f", powerUps.extendedRangeTimer), 
+                pixelPos.x - 10, pixelPos.y + yOffset, 8, LIME);
+        yOffset -= 10;
+    }
+    if (powerUps.rapidFire) {
+        DrawText(TextFormat("RAPID %.1f", powerUps.rapidFireTimer), 
+                pixelPos.x - 10, pixelPos.y + yOffset, 8, RED);
+        yOffset -= 10;
+    }
+    if (powerUps.invulnerable) {
+        DrawText(TextFormat("SHIELD %.1f", powerUps.invulnerableTimer), 
+                pixelPos.x - 10, pixelPos.y + yOffset, 8, GOLD);
+    }
+    
+    // Reload indicator
     if (isReloading()) {
         DrawCircle(pixelPos.x + Position::BLOCK_SIZE/2, 
                    pixelPos.y - 5, 4, RED);
-        DrawText(TextFormat("%.1f", shootCooldown), pixelPos.x - 5, pixelPos.y - 20, 8, RED);
-    } else {
-        DrawText("READY", pixelPos.x - 8, pixelPos.y - 15, 8, GREEN);
     }
 }
 
@@ -136,6 +223,47 @@ void Player::updateShooting(float deltaTime) {
         shootCooldown -= deltaTime;
         if (shootCooldown < 0.0f) {
             shootCooldown = 0.0f;
+        }
+    }
+}
+
+void Player::updatePowerUps(float deltaTime) {
+    // Update speed boost
+    if (powerUps.speedBoost) {
+        powerUps.speedBoostTimer -= deltaTime;
+        if (powerUps.speedBoostTimer <= 0.0f) {
+            powerUps.speedBoost = false;
+            moveSpeed = baseMoveSpeed;
+            std::cout << "Speed boost expired" << std::endl;
+        }
+    }
+    
+    // Update extended range
+    if (powerUps.extendedRange) {
+        powerUps.extendedRangeTimer -= deltaTime;
+        if (powerUps.extendedRangeTimer <= 0.0f) {
+            powerUps.extendedRange = false;
+            harpoonRange = baseHarpoonRange;
+            std::cout << "Extended range expired" << std::endl;
+        }
+    }
+    
+    // Update rapid fire
+    if (powerUps.rapidFire) {
+        powerUps.rapidFireTimer -= deltaTime;
+        if (powerUps.rapidFireTimer <= 0.0f) {
+            powerUps.rapidFire = false;
+            baseShootCooldown = 1.0f;
+            std::cout << "Rapid fire expired" << std::endl;
+        }
+    }
+    
+    // Update invulnerability
+    if (powerUps.invulnerable) {
+        powerUps.invulnerableTimer -= deltaTime;
+        if (powerUps.invulnerableTimer <= 0.0f) {
+            powerUps.invulnerable = false;
+            std::cout << "Invulnerability expired" << std::endl;
         }
     }
 }

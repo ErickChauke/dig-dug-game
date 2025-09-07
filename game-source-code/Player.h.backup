@@ -4,7 +4,6 @@
 #include "GameThing.h"
 #include "Interfaces.h"
 #include "Projectile.h"
-#include "PowerUp.h"
 #include <raylib-cpp.hpp>
 
 class Player : public GameThing, public CanMove, public CanCollide, public CanDig, public CanShoot {
@@ -20,24 +19,8 @@ private:
     Direction facingDirection;
     Direction movingDirection;
     float moveSpeed;
-    float baseMoveSpeed;
     bool isMoving;
     float shootCooldown;
-    float baseShootCooldown;
-    int harpoonRange;
-    int baseHarpoonRange;
-    
-    // Power-up effects
-    struct PowerUpEffects {
-        bool speedBoost;
-        bool extendedRange;
-        bool rapidFire;
-        bool invulnerable;
-        float speedBoostTimer;
-        float extendedRangeTimer;
-        float rapidFireTimer;
-        float invulnerableTimer;
-    } powerUps;
     
     class TerrainGrid* worldTerrain;
     
@@ -49,11 +32,6 @@ public:
     
     Direction getFacingDirection() const { return facingDirection; }
     Projectile* createProjectile() const;
-    
-    // Power-up system
-    void applyPowerUp(PowerUp::PowerUpType type, float duration);
-    bool isInvulnerable() const { return powerUps.invulnerable; }
-    int getCurrentHarpoonRange() const { return harpoonRange; }
     
     // CanMove interface implementation
     void moveUp() override;
@@ -82,7 +60,6 @@ private:
     void moveInDirection(Direction dir);
     void updateFacingDirection();
     void updateShooting(float deltaTime);
-    void updatePowerUps(float deltaTime);
     Projectile::Direction convertToProjectileDirection(Direction dir) const;
 };
 

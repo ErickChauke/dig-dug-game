@@ -1,8 +1,8 @@
 #include "Projectile.h"
 
-Projectile::Projectile(const Position& startPos, Direction dir) 
+Projectile::Projectile(const Position& startPos, Direction dir, int range) 
     : GameThing(startPos), direction(dir), state(EXTENDING), 
-      startPosition(startPos), currentTip(startPos), maxRange(8), 
+      startPosition(startPos), currentTip(startPos), maxRange(range), 
       currentLength(0), moveTimer(0.0f), hitSomething(false) {
 }
 
@@ -87,7 +87,7 @@ void Projectile::markHit() {
 void Projectile::update(float deltaTime) {
     moveTimer += deltaTime;
     
-    if (moveTimer >= 0.05f) { // Fast movement for visibility
+    if (moveTimer >= 0.05f) {
         moveTimer = 0.0f;
         
         switch (state) {
@@ -107,22 +107,23 @@ void Projectile::draw() const {
     Position startPixel = startPosition.toPixels();
     Position tipPixel = currentTip.toPixels();
     
-    // SUPER VISIBLE TETHER LINE - THICK AND BRIGHT
+    // Tether line color based on range
+    raylib::Color lineColor = (maxRange > 8) ? LIME : YELLOW;
+    
     DrawLineEx(Vector2{startPixel.x + Position::BLOCK_SIZE/2.0f, 
                      startPixel.y + Position::BLOCK_SIZE/2.0f},
                Vector2{tipPixel.x + Position::BLOCK_SIZE/2.0f, 
                      tipPixel.y + Position::BLOCK_SIZE/2.0f}, 
-               4.0f, // Very thick line
-               LIME); // Bright green
+               (maxRange > 8) ? 5.0f : 4.0f,
+               lineColor);
     
-    // SUPER VISIBLE HARPOON TIP
     if (state == EXTENDING || state == RETRACTING) {
-        // Large bright tip
+        raylib::Color tipColor = (maxRange > 8) ? PURPLE : MAGENTA;
+        
         DrawRectangle(tipPixel.x, tipPixel.y, 
                      Position::BLOCK_SIZE, Position::BLOCK_SIZE,
-                     MAGENTA);
+                     tipColor);
         
-        // Pulsing effect for even more visibility
         static float pulse = 0.0f;
         pulse += 0.2f;
         int alpha = (int)(128 + 127 * sin(pulse));

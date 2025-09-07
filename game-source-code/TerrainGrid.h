@@ -3,59 +3,50 @@
 
 #include "Position.h"
 #include <raylib-cpp.hpp>
+#include <vector>
+#include <string>
 
-/**
- * @brief Manages the game world terrain - solid earth vs tunnels
- * 
- * Tracks which blocks are solid earth and which are tunnels.
- * Handles digging operations and world rendering.
- */
+enum class BlockType {
+    EMPTY,
+    SOLID,
+    ROCK
+};
+
 class TerrainGrid {
 public:
-    // World dimensions (matches Position constants)
     static const int WORLD_WIDTH = 80;
     static const int WORLD_HEIGHT = 60;
     
 private:
-    bool isSolid[WORLD_WIDTH][WORLD_HEIGHT];
+    BlockType blocks[WORLD_WIDTH][WORLD_HEIGHT];
+    std::vector<Position> initialRockPositions;
+    Position playerStartPosition;
+    std::vector<Position> monsterPositions;
     
 public:
-    /**
-     * @brief Initialize terrain with all solid earth
-     */
     TerrainGrid();
     
-    /**
-     * @brief Check if block at position is solid earth
-     * @param pos World position to check
-     * @return True if solid earth, false if tunnel
-     */
+    bool loadFromFile(const std::string& filename);
+    
     bool isBlockSolid(const Position& pos) const;
+    bool isBlockRock(const Position& pos) const;
+    bool isBlockEmpty(const Position& pos) const;
+    BlockType getBlockType(const Position& pos) const;
     
-    /**
-     * @brief Dig a tunnel at the specified position
-     * @param pos World position to dig
-     */
     void digTunnelAt(const Position& pos);
+    void setBlock(const Position& pos, BlockType type);
     
-    /**
-     * @brief Check if position is within world bounds
-     * @param pos Position to validate
-     * @return True if position is valid
-     */
     bool isValidPosition(const Position& pos) const;
     
-    /**
-     * @brief Draw the terrain grid
-     */
     void draw() const;
     
-    /**
-     * @brief Create initial tunnel layout
-     */
-    void createStartingTunnels();
+    // Get initial positions from loaded level
+    Position getPlayerStartPosition() const { return playerStartPosition; }
+    const std::vector<Position>& getMonsterPositions() const { return monsterPositions; }
+    const std::vector<Position>& getInitialRockPositions() const { return initialRockPositions; }
     
 private:
+    void createDefaultLevel();
     raylib::Color getBlockColor(const Position& pos) const;
 };
 

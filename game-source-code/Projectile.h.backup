@@ -21,12 +21,11 @@ private:
     bool hitSomething;
     
 public:
-    Projectile(const Position& startPos, Direction dir, int range = 8);
+    Projectile(const Position& startPos, Direction dir);
     Direction getDirection() const { return direction; }
     HarpoonState getState() const { return state; }
     bool isFinished() const { return state == FINISHED; }
     bool hasHitTarget() const { return hitSomething; }
-    int getMaxRange() const { return maxRange; }
     
     void moveUp() override;
     void moveDown() override;

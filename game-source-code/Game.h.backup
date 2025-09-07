@@ -60,8 +60,6 @@ public:
     void pauseToggle();
     
 private:
-    void setupLevel(); // NEW: Set up game based on loaded level data
-    
     void drawSplashScreen() const;
     void drawGameplay() const;
     void drawGameOver() const;
@@ -69,6 +67,7 @@ private:
     void drawHUD() const;
     void drawExplosions() const;
     
+    void spawnMonsters();
     void updateMonsters(float deltaTime);
     void updateProjectiles(float deltaTime);
     void updateExplosions(float deltaTime);
@@ -79,7 +78,7 @@ private:
     void checkProjectileCollisions();
     void checkPowerUpCollisions();
     void checkFallingRockCollisions();
-    void checkForRockFalls(); // NEW: Check for rocks that should fall
+    void checkForRockFalls();
     
     void spawnPowerUp();
     void spawnRandomPowerUp(const Position& pos);
