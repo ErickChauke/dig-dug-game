@@ -1,32 +1,76 @@
 #include "Game.h"
+#include <iostream>
+#include <cstdlib>
 
 Game::Game() : showSplashScreen(true), splashTimer(0.0f), 
                player(Position(10, 10)), terrain(), gameOver(false), playerWon(false),
                score(0), level(1), monstersKilled(0), gameTime(0.0f), isPaused(false),
-               explosionTimer(0.0f) {
+               explosionTimer(0.0f), powerUpSpawnTimer(0.0f), rockFallCheckTimer(0.0f) {
+    
+    setupLevel();
+    audioManager = AudioManager::getInstance();
+    std::cout << "Game initialized with PERSISTENT ROCK FALLING system" << std::endl;
+}
+
+void Game::setupLevel() {
+    Position startPos = terrain.getPlayerStartPosition();
+    player = Player(startPos);
     player.setTerrain(&terrain);
-    spawnMonsters();
+    
+    std::cout << "Player spawned at: (" << startPos.x << ", " << startPos.y << ")" << std::endl;
+    
+    monsters.clear();
+    const auto& monsterPositions = terrain.getMonsterPositions();
+    for (size_t i = 0; i < monsterPositions.size(); i++) {
+        Monster::MonsterType type = (i % 3 == 0) ? Monster::GREEN_DRAGON : Monster::RED_MONSTER;
+        monsters.emplace_back(monsterPositions[i], type);
+        std::cout << "Monster spawned at: (" << monsterPositions[i].x << ", " << monsterPositions[i].y << ")" << std::endl;
+    }
+    
+    fallingRocks.clear();
+    
+    const auto& rockPositions = terrain.getInitialRockPositions();
+    std::cout << "=== PERSISTENT FALLING ROCKS READY ===" << std::endl;
+    for (const auto& rockPos : rockPositions) {
+        std::cout << "Rock at (" << rockPos.x << ", " << rockPos.y << ") - will fall persistently when triggered!" << std::endl;
+    }
+    std::cout << "==========================================" << std::endl;
+    
+    std::cout << "Level setup complete: " << monsters.size() << " monsters spawned" << std::endl;
 }
 
 void Game::addScore(int points) {
+    Position playerPos = player.getPosition();
+    animationManager.addScorePopup(playerPos, points);
     score += points;
 }
 
 void Game::createExplosion(const Position& pos) {
     explosionEffects.push_back(pos);
-    explosionTimer = 1.0f; // Explosion lasts 1 second
+    explosionTimer = 1.0f;
+    
+    animationManager.addExplosion(pos);
+    animationManager.addScreenShake(3.0f, 0.3f);
+    audioManager->playMonsterDestroy();
 }
 
 void Game::nextLevel() {
     level++;
     addScore(calculateLevelScore());
-    terrain = TerrainGrid(); // Reset terrain
-    player = Player(Position(10, 10));
-    player.setTerrain(&terrain);
+    
+    terrain = TerrainGrid();
     projectiles.clear();
-    spawnMonsters();
+    powerUps.clear();
+    fallingRocks.clear();
+    explosionEffects.clear();
+    
+    setupLevel();
+    
     gameOver = false;
     playerWon = false;
+    
+    audioManager->playLevelComplete();
+    std::cout << "Advanced to level " << level << std::endl;
 }
 
 void Game::pauseToggle() {
@@ -34,6 +78,8 @@ void Game::pauseToggle() {
 }
 
 void Game::update(float deltaTime) {
+    animationManager.update(deltaTime);
+    
     if (showSplashScreen) {
         splashTimer += deltaTime;
         
@@ -42,8 +88,9 @@ void Game::update(float deltaTime) {
         }
     } else if (IsKeyPressed(KEY_P)) {
         pauseToggle();
+    } else if (IsKeyPressed(KEY_M) && isPaused) {
+        audioManager->toggleSound();
     } else if (isPaused) {
-        // Game is paused - only allow unpause
         return;
     } else if (!gameOver) {
         gameTime += deltaTime;
@@ -52,16 +99,46 @@ void Game::update(float deltaTime) {
         updateMonsters(deltaTime);
         updateProjectiles(deltaTime);
         updateExplosions(deltaTime);
+        updatePowerUps(deltaTime);
+        updateFallingRocks(deltaTime);
         
-        if (IsKeyPressed(KEY_SPACE) && !player.isReloading()) {
-            Projectile* newProjectile = player.createProjectile();
-            if (newProjectile) {
-                projectiles.emplace_back(std::unique_ptr<Projectile>(newProjectile));
+        if (IsKeyPressed(KEY_SPACE)) {
+            if (!player.isReloading()) {
+                int playerFacing = static_cast<int>(player.getFacingDirection());
+                Projectile::Direction projDir;
+                
+                switch (playerFacing) {
+                    case 1: projDir = Projectile::UP; break;
+                    case 2: projDir = Projectile::DOWN; break;
+                    case 3: projDir = Projectile::LEFT; break;
+                    case 4: projDir = Projectile::RIGHT; break;
+                    default: projDir = Projectile::RIGHT; break;
+                }
+                
+                int range = player.getCurrentHarpoonRange();
+                Projectile* newProjectile = new Projectile(&player, projDir, range);
+                
+                if (newProjectile) {
+                    projectiles.emplace_back(std::unique_ptr<Projectile>(newProjectile));
+                    player.fireWeapon();
+                    audioManager->playHarpoonFire();
+                    std::cout << "Player-relative harpoon fired" << std::endl;
+                }
             }
         }
         
+        powerUpSpawnTimer += deltaTime;
+        if (powerUpSpawnTimer >= 30.0f) {
+            spawnPowerUp();
+            powerUpSpawnTimer = 0.0f;
+        }
+        
+        checkForTriggeredRockFalls();
+        
         checkCollisions();
         checkProjectileCollisions();
+        checkPowerUpCollisions();
+        checkFallingRockCollisions();
         
         if (allMonstersDestroyed()) {
             gameOver = true;
@@ -70,26 +147,26 @@ void Game::update(float deltaTime) {
         }
     } else {
         if (IsKeyPressed(KEY_R)) {
-            // Restart current level
             showSplashScreen = true;
             splashTimer = 0.0f;
             gameOver = false;
             playerWon = false;
             gameTime = 0.0f;
-            player = Player(Position(10, 10));
-            player.setTerrain(&terrain);
             terrain = TerrainGrid();
             projectiles.clear();
+            powerUps.clear();
+            fallingRocks.clear();
             explosionEffects.clear();
-            spawnMonsters();
+            setupLevel();
         } else if (IsKeyPressed(KEY_N) && playerWon) {
-            // Next level
             nextLevel();
         }
     }
 }
 
 void Game::draw() const {
+    Position shakeOffset = animationManager.getShakeOffset();
+    
     if (showSplashScreen) {
         drawSplashScreen();
     } else if (isPaused) {
@@ -97,30 +174,53 @@ void Game::draw() const {
     } else if (gameOver) {
         drawGameOver();
     } else {
+        if (shakeOffset.x != 0 || shakeOffset.y != 0) {
+            rlPushMatrix();
+            rlTranslatef(shakeOffset.x, shakeOffset.y, 0);
+        }
+        
         drawGameplay();
+        
+        if (shakeOffset.x != 0 || shakeOffset.y != 0) {
+            rlPopMatrix();
+        }
     }
+    
+    animationManager.drawAnimations();
 }
 
 void Game::drawSplashScreen() const {
-    DrawText("DIG DUG", 300, 200, 60, WHITE);
-    DrawText("A Tunnel Digging Adventure", 250, 280, 20, YELLOW);
+    DrawText("DIG DUG - PERSISTENT FALLING ROCKS", GetScreenWidth()/2 - MeasureText("DIG DUG - PERSISTENT FALLING ROCKS", 40)/2, 180, 40, WHITE);
+    DrawText("Rocks now fall persistently until they land!", GetScreenWidth()/2 - MeasureText("Rocks now fall persistently until they land!", 18)/2, 230, 18, YELLOW);
     
-    DrawText("Arrow Keys: Move & Dig", 290, 350, 18, GREEN);
-    DrawText("Spacebar: Fire Harpoon", 280, 380, 18, GREEN);
-    DrawText("P: Pause Game", 320, 410, 18, BLUE);
-    DrawText("Goal: Destroy all monsters!", 270, 440, 18, RED);
+    DrawText("Arrow Keys: Move DrawText("Arrow Keys: Move & Dig", 290, 320, 18, GREEN); Dig", GetScreenWidth()/2 - MeasureText("Arrow Keys: Move DrawText("Arrow Keys: Move & Dig", 290, 320, 18, GREEN); Dig", 18)/2, 320, 18, GREEN);
+    DrawText("Spacebar: Fire Player-Relative Harpoon", GetScreenWidth()/2 - MeasureText("Spacebar: Fire Player-Relative Harpoon", 18)/2, 350, 18, GREEN);
+    DrawText("P: Pause Game", GetScreenWidth()/2 - MeasureText("P: Pause Game", 18)/2, 380, 18, BLUE);
+    
+    DrawText("Fixed Rock Mechanics:", 260, 420, 16, PURPLE);
+    DrawText("- Rocks continue falling until they hit ground", 260, 440, 14, WHITE);
+    DrawText("- Bright yellow color with position tracking", 260, 460, 14, WHITE);
+    DrawText("- Detailed console output for debugging", 260, 480, 14, WHITE);
+    DrawText("- No premature disappearing!", 260, 500, 14, RED);
     
     static int frameCounter = 0;
     frameCounter++;
     if ((frameCounter / 30) % 2 == 0) {
-        DrawText("Press SPACE or ENTER to start...", 220, 480, 16, WHITE);
-    } else {
-        DrawText("Press SPACE or ENTER to start...", 220, 480, 16, GRAY);
+        DrawText("Press SPACE or ENTER to start...", GetScreenWidth()/2 - MeasureText("Press SPACE or ENTER to start...", 16)/2, 540, 16, WHITE);
     }
 }
 
 void Game::drawGameplay() const {
     terrain.draw();
+    
+    // Ensure falling rocks are drawn prominently
+    for (const auto& rock : fallingRocks) {
+        rock.draw();
+    }
+    
+    for (const auto& powerUp : powerUps) {
+        powerUp.draw();
+    }
     
     for (const auto& monster : monsters) {
         monster.draw();
@@ -136,8 +236,13 @@ void Game::drawGameplay() const {
 }
 
 void Game::drawPauseScreen() const {
-    // Draw game state in background (dimmed)
     terrain.draw();
+    for (const auto& rock : fallingRocks) {
+        rock.draw();
+    }
+    for (const auto& powerUp : powerUps) {
+        powerUp.draw();
+    }
     for (const auto& monster : monsters) {
         monster.draw();
     }
@@ -146,19 +251,23 @@ void Game::drawPauseScreen() const {
     }
     player.draw();
     
-    // Draw pause overlay
     DrawRectangle(0, 0, 800, 600, ColorAlpha(BLACK, 0.7f));
     DrawText("PAUSED", 340, 250, 40, WHITE);
     DrawText("Press P to continue", 300, 320, 20, YELLOW);
+    DrawText("Press M to toggle sound", 290, 350, 20, BLUE);
     
-    // Show current stats
-    DrawText(TextFormat("Level: %d", level), 330, 360, 18, WHITE);
-    DrawText(TextFormat("Score: %d", score), 330, 380, 18, WHITE);
-    DrawText(TextFormat("Time: %.1fs", gameTime), 330, 400, 18, WHITE);
+    const char* soundStatus = audioManager->isSoundEnabled() ? "ON" : "OFF";
+    DrawText(TextFormat("Sound: %s", soundStatus), 330, 380, 18, WHITE);
 }
 
 void Game::drawGameOver() const {
     terrain.draw();
+    for (const auto& rock : fallingRocks) {
+        rock.draw();
+    }
+    for (const auto& powerUp : powerUps) {
+        powerUp.draw();
+    }
     for (const auto& monster : monsters) {
         monster.draw();
     }
@@ -190,23 +299,18 @@ void Game::drawGameOver() const {
 }
 
 void Game::drawHUD() const {
-    // Enhanced HUD with better layout
     DrawRectangle(0, 0, 800, 40, ColorAlpha(BLACK, 0.8f));
     
-    // Score and level
     DrawText(TextFormat("Score: %d", score), 10, 10, 18, getScoreColor());
     DrawText(TextFormat("Level: %d", level), 150, 10, 18, YELLOW);
     DrawText(TextFormat("Time: %.1fs", gameTime), 250, 10, 18, WHITE);
     
-    // Monster info
-    DrawText(TextFormat("Monsters: %d", (int)monsters.size()), 380, 10, 18, RED);
-    DrawText(TextFormat("Harpoons: %d", (int)projectiles.size()), 520, 10, 18, YELLOW);
+    DrawText(TextFormat("Harpoons: %d", (int)projectiles.size()), 380, 10, 18, LIME);
+    DrawText(TextFormat("PowerUps: %d", (int)powerUps.size()), 520, 10, 18, PURPLE);
+    DrawText(TextFormat("Rocks: %d", (int)fallingRocks.size()), 650, 10, 18, YELLOW);
     
-    // Player status
     Position playerPos = player.getPosition();
-    DrawText(TextFormat("Pos: (%d,%d)", playerPos.x, playerPos.y), 650, 10, 14, GREEN);
     
-    // Monster states (if any monsters exist)
     if (!monsters.empty()) {
         DrawRectangle(0, 550, 800, 50, ColorAlpha(BLACK, 0.8f));
         int xOffset = 10;
@@ -238,7 +342,6 @@ void Game::drawExplosions() const {
     for (const auto& pos : explosionEffects) {
         Position pixelPos = pos.toPixels();
         
-        // Animated explosion effect
         static float animTimer = 0.0f;
         animTimer += 0.1f;
         
@@ -249,25 +352,6 @@ void Game::drawExplosions() const {
         DrawCircle(pixelPos.x + Position::BLOCK_SIZE/2, 
                   pixelPos.y + Position::BLOCK_SIZE/2, 
                   radius/2, ColorAlpha(YELLOW, 0.6f));
-    }
-}
-
-void Game::spawnMonsters() {
-    monsters.clear();
-    monstersKilled = 0;
-    
-    // Spawn more monsters at higher levels
-    int monsterCount = 2 + level;
-    if (monsterCount > 6) monsterCount = 6; // Cap at 6 monsters
-    
-    for (int i = 0; i < monsterCount; ++i) {
-        Position spawnPos;
-        do {
-            spawnPos = Position(20 + rand() % 40, 15 + rand() % 30);
-        } while (spawnPos.distanceTo(player.getPosition()) < 10.0f);
-        
-        Monster::MonsterType type = (i % 3 == 0) ? Monster::GREEN_DRAGON : Monster::RED_MONSTER;
-        monsters.emplace_back(spawnPos, type);
     }
 }
 
@@ -301,13 +385,46 @@ void Game::updateExplosions(float deltaTime) {
     }
 }
 
+void Game::updatePowerUps(float deltaTime) {
+    for (auto& powerUp : powerUps) {
+        powerUp.update(deltaTime);
+    }
+}
+
+void Game::updateFallingRocks(float deltaTime) {
+    
+    
+    for (auto& rock : fallingRocks) {
+        rock.update(deltaTime);
+    }
+    
+    size_t beforeCount = fallingRocks.size();
+    auto it = std::remove_if(fallingRocks.begin(), fallingRocks.end(),
+        [](const FallingRock& rock) { 
+            bool shouldRemove = rock.isLanded();
+            if (shouldRemove) {
+                
+            }
+            return shouldRemove; 
+        });
+    fallingRocks.erase(it, fallingRocks.end());
+    
+    size_t afterCount = fallingRocks.size();
+    if (beforeCount != afterCount) {
+        
+    }
+}
+
 void Game::checkCollisions() {
     Position playerPos = player.getPosition();
     
     for (auto it = monsters.begin(); it != monsters.end(); ) {
-        if (it->getPosition() == playerPos) {
+        if (it->getPosition() == playerPos && !player.isInvulnerable()) {
             gameOver = true;
             playerWon = false;
+            audioManager->playPlayerHit();
+            animationManager.addScreenShake(5.0f, 0.5f);
+            std::cout << "Player hit by monster!" << std::endl;
             return;
         }
         ++it;
@@ -321,13 +438,17 @@ void Game::checkProjectileCollisions() {
         
         for (auto monsterIt = monsters.begin(); monsterIt != monsters.end(); ) {
             if (monsterIt->getPosition() == projPos) {
-                // Monster hit by projectile
                 createExplosion(projPos);
+                audioManager->playHarpoonHit();
+                animationManager.addHarpoonImpact(projPos);
                 
-                // Add score based on monster type
                 int points = (monsterIt->getType() == Monster::GREEN_DRAGON) ? 200 : 100;
                 addScore(points);
                 monstersKilled++;
+                
+                if (rand() % 4 == 0) {
+                    spawnRandomPowerUp(projPos);
+                }
                 
                 monsterIt = monsters.erase(monsterIt);
                 projectileHit = true;
@@ -343,6 +464,92 @@ void Game::checkProjectileCollisions() {
             ++projIt;
         }
     }
+}
+
+void Game::checkPowerUpCollisions() {
+    Position playerPos = player.getPosition();
+    
+    for (auto it = powerUps.begin(); it != powerUps.end(); ) {
+        if (it->getPosition() == playerPos && !it->isCollected()) {
+            player.applyPowerUp(it->getType(), it->getDuration());
+            it->collect();
+            addScore(50);
+            
+            std::cout << "Power-up collected!" << std::endl;
+            it = powerUps.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+void Game::checkFallingRockCollisions() {
+    Position playerPos = player.getPosition();
+    
+    for (auto& rock : fallingRocks) {
+        if (rock.getPosition() == playerPos && !player.isInvulnerable()) {
+            gameOver = true;
+            playerWon = false;
+            std::cout << "Player crushed by persistent falling rock!" << std::endl;
+            return;
+        }
+        
+        for (auto monsterIt = monsters.begin(); monsterIt != monsters.end(); ) {
+            if (monsterIt->getPosition() == rock.getPosition()) {
+                createExplosion(rock.getPosition());
+                addScore(150);
+                monsterIt = monsters.erase(monsterIt);
+                std::cout << "Monster crushed by persistent falling rock!" << std::endl;
+            } else {
+                ++monsterIt;
+            }
+        }
+    }
+}
+
+void Game::checkForTriggeredRockFalls() {
+    std::vector<Position> triggeredFalls = terrain.getTriggeredRockFalls();
+    
+    for (const auto& rockPos : triggeredFalls) {
+        bool alreadyFalling = false;
+        for (const auto& rock : fallingRocks) {
+            if (rock.getPosition() == rockPos) {
+                alreadyFalling = true;
+                break;
+            }
+        }
+        
+        if (!alreadyFalling) {
+            terrain.removeRockAt(rockPos);
+            fallingRocks.emplace_back(rockPos, &terrain);
+            std::cout << "*** PERSISTENT ROCK FALL TRIGGERED! *** Rock at (" << rockPos.x << ", " << rockPos.y << ") will fall until it lands!" << std::endl;
+        }
+    }
+}
+
+void Game::checkForRockFalls() {
+    // Legacy method - no longer used
+}
+
+void Game::spawnPowerUp() {
+    if (powerUps.size() >= 2) return;
+    
+    Position spawnPos;
+    int attempts = 0;
+    do {
+        spawnPos = Position(15 + rand() % 50, 15 + rand() % 30);
+        attempts++;
+    } while (!terrain.isBlockEmpty(spawnPos) && attempts < 20);
+    
+    if (attempts < 20) {
+        spawnRandomPowerUp(spawnPos);
+    }
+}
+
+void Game::spawnRandomPowerUp(const Position& pos) {
+    PowerUp::PowerUpType type = static_cast<PowerUp::PowerUpType>(rand() % 4);
+    powerUps.emplace_back(pos, type);
+    std::cout << "Power-up spawned at (" << pos.x << ", " << pos.y << ")" << std::endl;
 }
 
 bool Game::allMonstersDestroyed() const {

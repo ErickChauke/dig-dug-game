@@ -190,30 +190,43 @@ void Game::draw() const {
 }
 
 void Game::drawSplashScreen() const {
-    DrawText("DIG DUG - PERSISTENT FALLING ROCKS", 240, 180, 40, WHITE);
-    DrawText("Rocks now fall persistently until they land!", 230, 230, 18, YELLOW);
+    const char* title = "DIG DUG - POLISHED UI";
+    const char* subtitle = "Clean interface ready for sprites!";
     
-    DrawText("Arrow Keys: Move & Dig", 290, 320, 18, GREEN);
-    DrawText("Spacebar: Fire Player-Relative Harpoon", 240, 350, 18, GREEN);
-    DrawText("P: Pause Game", 320, 380, 18, BLUE);
+    DrawText(title, 400 - MeasureText(title, 40)/2, 180, 40, WHITE);
+    DrawText(subtitle, 400 - MeasureText(subtitle, 18)/2, 230, 18, YELLOW);
     
-    DrawText("Fixed Rock Mechanics:", 260, 420, 16, PURPLE);
-    DrawText("- Rocks continue falling until they hit ground", 260, 440, 14, WHITE);
-    DrawText("- Bright yellow color with position tracking", 260, 460, 14, WHITE);
-    DrawText("- Detailed console output for debugging", 260, 480, 14, WHITE);
-    DrawText("- No premature disappearing!", 260, 500, 14, RED);
+    const char* controls1 = "Arrow Keys: Move & Dig";
+    const char* controls2 = "Spacebar: Fire Harpoon";
+    const char* controls3 = "P: Pause Game";
+    
+    DrawText(controls1, 400 - MeasureText(controls1, 18)/2, 320, 18, GREEN);
+    DrawText(controls2, 400 - MeasureText(controls2, 18)/2, 350, 18, GREEN);
+    DrawText(controls3, 400 - MeasureText(controls3, 18)/2, 380, 18, BLUE);
+    
+    const char* features = "Clean UI Features:";
+    const char* feat1 = "- Centered text for professional look";
+    const char* feat2 = "- Clean HUD without debug clutter";
+    const char* feat3 = "- Reduced console output noise";
+    const char* feat4 = "- Ready for sprite implementation!";
+    
+    DrawText(features, 400 - MeasureText(features, 16)/2, 420, 16, PURPLE);
+    DrawText(feat1, 400 - MeasureText(feat1, 14)/2, 440, 14, WHITE);
+    DrawText(feat2, 400 - MeasureText(feat2, 14)/2, 460, 14, WHITE);
+    DrawText(feat3, 400 - MeasureText(feat3, 14)/2, 480, 14, WHITE);
+    DrawText(feat4, 400 - MeasureText(feat4, 14)/2, 500, 14, RED);
     
     static int frameCounter = 0;
     frameCounter++;
     if ((frameCounter / 30) % 2 == 0) {
-        DrawText("Press SPACE or ENTER to start...", 220, 540, 16, WHITE);
+        const char* start = "Press SPACE or ENTER to start...";
+        DrawText(start, 400 - MeasureText(start, 16)/2, 540, 16, WHITE);
     }
 }
 
 void Game::drawGameplay() const {
     terrain.draw();
     
-    // Ensure falling rocks are drawn prominently
     for (const auto& rock : fallingRocks) {
         rock.draw();
     }
@@ -307,10 +320,7 @@ void Game::drawHUD() const {
     
     DrawText(TextFormat("Harpoons: %d", (int)projectiles.size()), 380, 10, 18, LIME);
     DrawText(TextFormat("PowerUps: %d", (int)powerUps.size()), 520, 10, 18, PURPLE);
-    DrawText(TextFormat("Persistent Rocks: %d", (int)fallingRocks.size()), 600, 10, 18, YELLOW);
-    
-    Position playerPos = player.getPosition();
-    DrawText(TextFormat("Pos: (%d,%d)", playerPos.x, playerPos.y), 10, 25, 12, GREEN);
+    DrawText(TextFormat("Rocks: %d", (int)fallingRocks.size()), 650, 10, 18, YELLOW);
     
     if (!monsters.empty()) {
         DrawRectangle(0, 550, 800, 50, ColorAlpha(BLACK, 0.8f));
@@ -393,27 +403,15 @@ void Game::updatePowerUps(float deltaTime) {
 }
 
 void Game::updateFallingRocks(float deltaTime) {
-    std::cout << "Updating " << fallingRocks.size() << " falling rocks..." << std::endl;
-    
     for (auto& rock : fallingRocks) {
         rock.update(deltaTime);
     }
     
-    size_t beforeCount = fallingRocks.size();
     auto it = std::remove_if(fallingRocks.begin(), fallingRocks.end(),
         [](const FallingRock& rock) { 
-            bool shouldRemove = rock.isLanded();
-            if (shouldRemove) {
-                std::cout << "Removing landed rock from falling rocks list" << std::endl;
-            }
-            return shouldRemove; 
+            return rock.isLanded(); 
         });
     fallingRocks.erase(it, fallingRocks.end());
-    
-    size_t afterCount = fallingRocks.size();
-    if (beforeCount != afterCount) {
-        std::cout << "Falling rocks count: " << beforeCount << " -> " << afterCount << std::endl;
-    }
 }
 
 void Game::checkCollisions() {
@@ -491,7 +489,7 @@ void Game::checkFallingRockCollisions() {
         if (rock.getPosition() == playerPos && !player.isInvulnerable()) {
             gameOver = true;
             playerWon = false;
-            std::cout << "Player crushed by persistent falling rock!" << std::endl;
+            std::cout << "Player crushed by falling rock!" << std::endl;
             return;
         }
         
@@ -500,7 +498,7 @@ void Game::checkFallingRockCollisions() {
                 createExplosion(rock.getPosition());
                 addScore(150);
                 monsterIt = monsters.erase(monsterIt);
-                std::cout << "Monster crushed by persistent falling rock!" << std::endl;
+                std::cout << "Monster crushed by falling rock!" << std::endl;
             } else {
                 ++monsterIt;
             }
@@ -523,7 +521,7 @@ void Game::checkForTriggeredRockFalls() {
         if (!alreadyFalling) {
             terrain.removeRockAt(rockPos);
             fallingRocks.emplace_back(rockPos, &terrain);
-            std::cout << "*** PERSISTENT ROCK FALL TRIGGERED! *** Rock at (" << rockPos.x << ", " << rockPos.y << ") will fall until it lands!" << std::endl;
+            std::cout << "*** ROCK FALL TRIGGERED! *** Rock at (" << rockPos.x << ", " << rockPos.y << ") will fall until it lands!" << std::endl;
         }
     }
 }

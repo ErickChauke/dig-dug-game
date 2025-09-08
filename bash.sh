@@ -1,10 +1,143 @@
 #!/bin/bash
 cd game-source-code
 
-echo "=== COMPLETE GAME.CPP REWRITE ==="
+echo "=== FIXING UI CLEANUP - COMPLETE FILE REWRITE ==="
 
-# Completely rewrite Game.cpp with all methods properly defined
-cat > Game.cpp << 'EOF'
+# 1. Clean up FallingRock.cpp - remove redundant debug prints
+cat > FallingRock.cpp << 'EOF'
+#include "FallingRock.h"
+#include "TerrainGrid.h"
+#include <iostream>
+
+FallingRock::FallingRock() 
+    : GameThing(Position(0, 0)), fallSpeed(30.0f), fallTimer(0.0f), 
+      fallInterval(1.0f), hasLanded(false), isStable(true), terrain(nullptr) {
+}
+
+FallingRock::FallingRock(const Position& startPos, TerrainGrid* terrainRef) 
+    : GameThing(startPos), fallSpeed(30.0f), fallTimer(0.0f), 
+      fallInterval(1.0f), hasLanded(false), isStable(false), terrain(terrainRef) {
+    
+    std::cout << "Falling rock created at (" << startPos.x << ", " << startPos.y << ")" << std::endl;
+}
+
+raylib::Rectangle FallingRock::getBounds() const {
+    Position pixelPos = location.toPixels();
+    return raylib::Rectangle(pixelPos.x, pixelPos.y, Position::BLOCK_SIZE, Position::BLOCK_SIZE);
+}
+
+void FallingRock::onCollision(const CanCollide& other) {
+    // Collision with player or monsters handled by game logic
+}
+
+void FallingRock::update(float deltaTime) {
+    if (hasLanded) {
+        return;
+    }
+    
+    fallTimer += deltaTime;
+    
+    if (fallTimer >= fallInterval) {
+        fallTimer = 0.0f;
+        
+        Position newPos = location;
+        newPos.y++;
+        
+        if (canFallTo(newPos)) {
+            location = newPos;
+        } else {
+            land();
+            
+            if (terrain) {
+                terrain->setBlock(location, BlockType::ROCK);
+            }
+        }
+    }
+}
+
+void FallingRock::draw() const {
+    Position pixelPos = location.toPixels();
+    
+    if (!hasLanded) {
+        float fallProgress = fallTimer / fallInterval;
+        
+        DrawRectangle(pixelPos.x, pixelPos.y, 
+                     Position::BLOCK_SIZE, Position::BLOCK_SIZE, YELLOW);
+        
+        DrawRectangleLines(pixelPos.x - 1, pixelPos.y - 1, 
+                          Position::BLOCK_SIZE + 2, Position::BLOCK_SIZE + 2, RED);
+        DrawRectangleLines(pixelPos.x - 2, pixelPos.y - 2, 
+                          Position::BLOCK_SIZE + 4, Position::BLOCK_SIZE + 4, RED);
+        
+        for (int i = 1; i <= 5; i++) {
+            float alpha = 0.6f - (i * 0.1f);
+            DrawRectangle(pixelPos.x + 2, pixelPos.y - (i * 3), 
+                         Position::BLOCK_SIZE - 4, 2, 
+                         ColorAlpha(ORANGE, alpha));
+        }
+        
+        float timeRemaining = fallInterval - fallTimer;
+        const char* timerText = TextFormat("%.1f", timeRemaining);
+        DrawText(timerText, pixelPos.x - 8, pixelPos.y - 15, 10, WHITE);
+        
+        DrawText("FALLING!", pixelPos.x - 12, pixelPos.y + 12, 8, RED);
+        
+        int barWidth = Position::BLOCK_SIZE;
+        int progressWidth = (int)(barWidth * fallProgress);
+        DrawRectangle(pixelPos.x, pixelPos.y - 5, barWidth, 3, DARKGRAY);
+        DrawRectangle(pixelPos.x, pixelPos.y - 5, progressWidth, 3, RED);
+        
+    } else {
+        DrawRectangle(pixelPos.x + 1, pixelPos.y + 1, 
+                     Position::BLOCK_SIZE - 2, Position::BLOCK_SIZE - 2,
+                     GRAY);
+        
+        DrawRectangleLines(pixelPos.x, pixelPos.y, 
+                          Position::BLOCK_SIZE, Position::BLOCK_SIZE, DARKGRAY);
+        
+        DrawText("LANDED", pixelPos.x - 8, pixelPos.y + 12, 6, GREEN);
+    }
+}
+
+bool FallingRock::canFallTo(const Position& pos) const {
+    if (!pos.isValid()) {
+        return false;
+    }
+    
+    if (pos.y >= Position::WORLD_HEIGHT - 3) {
+        return false;
+    }
+    
+    if (terrain) {
+        return terrain->isBlockEmpty(pos);
+    }
+    
+    return true;
+}
+
+bool FallingRock::hasSupport() const {
+    if (!terrain) return false;
+    
+    Position belowPos = location;
+    belowPos.y++;
+    
+    return !terrain->isBlockEmpty(belowPos) || !belowPos.isValid() || belowPos.y >= Position::WORLD_HEIGHT - 3;
+}
+
+void FallingRock::checkStability() {
+    if (hasSupport()) {
+        isStable = true;
+        land();
+    }
+}
+EOF
+
+# 2. Fix Game.cpp with proper drawSplashScreen function
+# Backup first
+cp Game.cpp Game.cpp.backup 2>/dev/null || echo "No backup needed"
+
+# Replace the problematic drawSplashScreen function completely
+cat > temp_game_fix.cpp << 'GAMEFIX_EOF'
 #include "Game.h"
 #include <iostream>
 #include <cstdlib>
@@ -197,30 +330,43 @@ void Game::draw() const {
 }
 
 void Game::drawSplashScreen() const {
-    DrawText("DIG DUG - PERSISTENT FALLING ROCKS", 240, 180, 40, WHITE);
-    DrawText("Rocks now fall persistently until they land!", 230, 230, 18, YELLOW);
+    const char* title = "DIG DUG - POLISHED UI";
+    const char* subtitle = "Clean interface ready for sprites!";
     
-    DrawText("Arrow Keys: Move & Dig", 290, 320, 18, GREEN);
-    DrawText("Spacebar: Fire Player-Relative Harpoon", 240, 350, 18, GREEN);
-    DrawText("P: Pause Game", 320, 380, 18, BLUE);
+    DrawText(title, 400 - MeasureText(title, 40)/2, 180, 40, WHITE);
+    DrawText(subtitle, 400 - MeasureText(subtitle, 18)/2, 230, 18, YELLOW);
     
-    DrawText("Fixed Rock Mechanics:", 260, 420, 16, PURPLE);
-    DrawText("- Rocks continue falling until they hit ground", 260, 440, 14, WHITE);
-    DrawText("- Bright yellow color with position tracking", 260, 460, 14, WHITE);
-    DrawText("- Detailed console output for debugging", 260, 480, 14, WHITE);
-    DrawText("- No premature disappearing!", 260, 500, 14, RED);
+    const char* controls1 = "Arrow Keys: Move & Dig";
+    const char* controls2 = "Spacebar: Fire Harpoon";
+    const char* controls3 = "P: Pause Game";
+    
+    DrawText(controls1, 400 - MeasureText(controls1, 18)/2, 320, 18, GREEN);
+    DrawText(controls2, 400 - MeasureText(controls2, 18)/2, 350, 18, GREEN);
+    DrawText(controls3, 400 - MeasureText(controls3, 18)/2, 380, 18, BLUE);
+    
+    const char* features = "Clean UI Features:";
+    const char* feat1 = "- Centered text for professional look";
+    const char* feat2 = "- Clean HUD without debug clutter";
+    const char* feat3 = "- Reduced console output noise";
+    const char* feat4 = "- Ready for sprite implementation!";
+    
+    DrawText(features, 400 - MeasureText(features, 16)/2, 420, 16, PURPLE);
+    DrawText(feat1, 400 - MeasureText(feat1, 14)/2, 440, 14, WHITE);
+    DrawText(feat2, 400 - MeasureText(feat2, 14)/2, 460, 14, WHITE);
+    DrawText(feat3, 400 - MeasureText(feat3, 14)/2, 480, 14, WHITE);
+    DrawText(feat4, 400 - MeasureText(feat4, 14)/2, 500, 14, RED);
     
     static int frameCounter = 0;
     frameCounter++;
     if ((frameCounter / 30) % 2 == 0) {
-        DrawText("Press SPACE or ENTER to start...", 220, 540, 16, WHITE);
+        const char* start = "Press SPACE or ENTER to start...";
+        DrawText(start, 400 - MeasureText(start, 16)/2, 540, 16, WHITE);
     }
 }
 
 void Game::drawGameplay() const {
     terrain.draw();
     
-    // Ensure falling rocks are drawn prominently
     for (const auto& rock : fallingRocks) {
         rock.draw();
     }
@@ -314,10 +460,7 @@ void Game::drawHUD() const {
     
     DrawText(TextFormat("Harpoons: %d", (int)projectiles.size()), 380, 10, 18, LIME);
     DrawText(TextFormat("PowerUps: %d", (int)powerUps.size()), 520, 10, 18, PURPLE);
-    DrawText(TextFormat("Persistent Rocks: %d", (int)fallingRocks.size()), 600, 10, 18, YELLOW);
-    
-    Position playerPos = player.getPosition();
-    DrawText(TextFormat("Pos: (%d,%d)", playerPos.x, playerPos.y), 10, 25, 12, GREEN);
+    DrawText(TextFormat("Rocks: %d", (int)fallingRocks.size()), 650, 10, 18, YELLOW);
     
     if (!monsters.empty()) {
         DrawRectangle(0, 550, 800, 50, ColorAlpha(BLACK, 0.8f));
@@ -400,27 +543,15 @@ void Game::updatePowerUps(float deltaTime) {
 }
 
 void Game::updateFallingRocks(float deltaTime) {
-    std::cout << "Updating " << fallingRocks.size() << " falling rocks..." << std::endl;
-    
     for (auto& rock : fallingRocks) {
         rock.update(deltaTime);
     }
     
-    size_t beforeCount = fallingRocks.size();
     auto it = std::remove_if(fallingRocks.begin(), fallingRocks.end(),
         [](const FallingRock& rock) { 
-            bool shouldRemove = rock.isLanded();
-            if (shouldRemove) {
-                std::cout << "Removing landed rock from falling rocks list" << std::endl;
-            }
-            return shouldRemove; 
+            return rock.isLanded(); 
         });
     fallingRocks.erase(it, fallingRocks.end());
-    
-    size_t afterCount = fallingRocks.size();
-    if (beforeCount != afterCount) {
-        std::cout << "Falling rocks count: " << beforeCount << " -> " << afterCount << std::endl;
-    }
 }
 
 void Game::checkCollisions() {
@@ -498,7 +629,7 @@ void Game::checkFallingRockCollisions() {
         if (rock.getPosition() == playerPos && !player.isInvulnerable()) {
             gameOver = true;
             playerWon = false;
-            std::cout << "Player crushed by persistent falling rock!" << std::endl;
+            std::cout << "Player crushed by falling rock!" << std::endl;
             return;
         }
         
@@ -507,7 +638,7 @@ void Game::checkFallingRockCollisions() {
                 createExplosion(rock.getPosition());
                 addScore(150);
                 monsterIt = monsters.erase(monsterIt);
-                std::cout << "Monster crushed by persistent falling rock!" << std::endl;
+                std::cout << "Monster crushed by falling rock!" << std::endl;
             } else {
                 ++monsterIt;
             }
@@ -530,7 +661,7 @@ void Game::checkForTriggeredRockFalls() {
         if (!alreadyFalling) {
             terrain.removeRockAt(rockPos);
             fallingRocks.emplace_back(rockPos, &terrain);
-            std::cout << "*** PERSISTENT ROCK FALL TRIGGERED! *** Rock at (" << rockPos.x << ", " << rockPos.y << ") will fall until it lands!" << std::endl;
+            std::cout << "*** ROCK FALL TRIGGERED! *** Rock at (" << rockPos.x << ", " << rockPos.y << ") will fall until it lands!" << std::endl;
         }
     }
 }
@@ -575,25 +706,33 @@ Color Game::getScoreColor() const {
     else if (score < 3000) return ORANGE;
     else return GOLD;
 }
-EOF
+GAMEFIX_EOF
 
-echo "Building complete Game.cpp rewrite..."
+# Replace the broken Game.cpp with the fixed version
+mv temp_game_fix.cpp Game.cpp
+
+echo "Building fixed files..."
 cd ../build && cmake --build . && cd ..
 
 if [ $? -eq 0 ]; then
     echo ""
-    echo "=== COMPLETE GAME.CPP REWRITE SUCCESSFUL ==="
-    echo "✅ All duplicate method definitions removed"
-    echo "✅ All missing methods properly implemented"
-    echo "✅ Persistent rock falling system complete"
-    echo "✅ Clean, working Game.cpp file"
+    echo "=== UI CLEANUP SUCCESSFUL ==="
+    echo "✅ Removed redundant falling rock debug prints"
+    echo "✅ Fixed splash screen with properly centered text"
+    echo "✅ Clean HUD without player position display"
+    echo "✅ Improved presentation with polished UI"
     echo ""
-    echo "READY TO TEST:"
-    echo "- Dig underneath rocks to see persistent falling"
-    echo "- Watch console for detailed rock movement debug"
-    echo "- Bright yellow falling rocks with position tracking"
+    echo "Changes made:"
+    echo "- FallingRock: Removed verbose debug output"
+    echo "- Game: Complete rewrite with centered text"
+    echo "- Splash screen: Professional centered layout"
+    echo "- HUD: Clean design without debug clutter"
     echo ""
     echo "Run: ./release/bin/Debug/game.exe"
 else
-    echo "Build failed - checking for other issues..."
+    echo "Build failed - restoring backup if available..."
+    if [ -f Game.cpp.backup ]; then
+        cp Game.cpp.backup Game.cpp
+        echo "Backup restored"
+    fi
 fi
