@@ -202,7 +202,7 @@ void Player::moveInDirection(Direction dir) {
     }
     
     // GROUND LEVEL BOUNDARY: Cannot go above row 6 (ground level)
-    if (newPos.y < 6) {
+    if (newPos.y < 3) {
         std::cout << "Cannot go above ground level!" << std::endl;
         return;
     }

@@ -36,6 +36,12 @@ void Game::setupLevel() {
     }
     std::cout << "==========================================" << std::endl;
     
+    
+    // Check for rocks that should fall naturally (no support)
+    terrain.checkAllRocksForFalling();
+    
+    // Process any rocks that were triggered to fall
+    checkForTriggeredRockFalls();
     std::cout << "Level setup complete: " << monsters.size() << " monsters spawned" << std::endl;
 }
 
@@ -536,7 +542,7 @@ void Game::spawnPowerUp() {
     Position spawnPos;
     int attempts = 0;
     do {
-        spawnPos = Position(15 + rand() % 50, 15 + rand() % 30);
+        spawnPos = Position(8 + rand() % 25, 8 + rand() % 15);
         attempts++;
     } while (!terrain.isBlockEmpty(spawnPos) && attempts < 20);
     

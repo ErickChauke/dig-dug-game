@@ -181,9 +181,9 @@ void TerrainGrid::draw() const {
 }
 
 void TerrainGrid::createDefaultLevel() {
-    std::cout << "Creating authentic Dig Dug level with narrow tunnels..." << std::endl;
+    std::cout << "Creating default level with visible rocks..." << std::endl;
     
-    // Initialize ground level - sky above row 3
+    // Initialize ground level - sky above row 3 (was 7)
     for (int x = 0; x < WORLD_WIDTH; x++) {
         for (int y = 0; y < 3; y++) {
             blocks[x][y] = BlockType::EMPTY;
@@ -197,65 +197,45 @@ void TerrainGrid::createDefaultLevel() {
         }
     }
     
-    // Create NARROW vertical tunnel from surface
-    blocks[20][3] = BlockType::EMPTY;  // Surface entrance
-    blocks[20][4] = BlockType::EMPTY;
-    blocks[20][5] = BlockType::EMPTY;
-    blocks[20][6] = BlockType::EMPTY;
-    blocks[20][7] = BlockType::EMPTY;
-    blocks[20][8] = BlockType::EMPTY;
-    blocks[20][9] = BlockType::EMPTY;
-    blocks[20][10] = BlockType::EMPTY;
-    blocks[20][11] = BlockType::EMPTY;
-    blocks[20][12] = BlockType::EMPTY;
-    blocks[20][13] = BlockType::EMPTY;
-    blocks[20][14] = BlockType::EMPTY;
-    
-    // Create NARROW horizontal tunnels where monsters live
-    // Upper tunnel
-    for (int x = 10; x < 30; x++) {
-        blocks[x][15] = BlockType::EMPTY;
+    // Create starting tunnels
+    for (int x = 5; x < 35; x++) {
+        blocks[x][3] = BlockType::EMPTY; 
+        blocks[x][4] = BlockType::EMPTY; 
     }
     
-    // Lower tunnel  
-    for (int x = 10; x < 30; x++) {
-        blocks[x][25] = BlockType::EMPTY;
+    // Create vertical shafts
+    for (int y = 5; y < 12; y++) {
+        blocks[10][y] = BlockType::EMPTY;
+        blocks[20][y] = BlockType::EMPTY;
+        blocks[30][y] = BlockType::EMPTY;
     }
     
-    // Connect vertical to horizontal tunnels
-    blocks[20][15] = BlockType::EMPTY;
-    blocks[20][16] = BlockType::EMPTY;
-    blocks[20][17] = BlockType::EMPTY;
-    blocks[20][18] = BlockType::EMPTY;
-    blocks[20][19] = BlockType::EMPTY;
-    blocks[20][20] = BlockType::EMPTY;
-    blocks[20][21] = BlockType::EMPTY;
-    blocks[20][22] = BlockType::EMPTY;
-    blocks[20][23] = BlockType::EMPTY;
-    blocks[20][24] = BlockType::EMPTY;
-    blocks[20][25] = BlockType::EMPTY;
+    // Create horizontal tunnels with space above for rocks
+    for (int x = 8; x < 32; x++) {
+        blocks[x][8] = BlockType::EMPTY;   // Tunnel at row 8
+        blocks[x][15] = BlockType::EMPTY;  // Tunnel at row 15
+        blocks[x][22] = BlockType::EMPTY;  // Tunnel at row 22
+    }
     
     // Set player start position
-    playerStartPosition = Position(20, 3);  // Start at surface
+    playerStartPosition = Position(20, 3);  // Start on surface (was 39, 7)
     
-    // Add monsters in the narrow tunnels
+    // Add monsters in strategic locations
     monsterPositions.clear();
-    monsterPositions.push_back(Position(25, 15));  // In upper tunnel
-    monsterPositions.push_back(Position(15, 25));  // In lower tunnel
+    monsterPositions.push_back(Position(9, 16));
+    monsterPositions.push_back(Position(24, 16));
+    monsterPositions.push_back(Position(9, 23));
+    monsterPositions.push_back(Position(24, 23));
     
-    // CRITICAL: Place rocks ABOVE tunnels in solid earth where they can fall
+    // CRITICAL: Add VISIBLE rocks strategically placed ABOVE tunnels
     initialRockPositions.clear();
     
-    // Rocks above upper tunnel - these will fall when player digs below them
-    Position rock1(15, 14);  // Above upper tunnel
-    Position rock2(25, 14);  // Above upper tunnel  
-    
-    // Rocks above lower tunnel - these will fall when player digs below them
-    Position rock3(15, 24);  // Above lower tunnel
-    Position rock4(25, 24);  // Above lower tunnel
-    
-    // Rock above vertical tunnel
-    Position rock5(20, 7);   // In vertical tunnel path
+    // Rocks positioned directly above tunnels so they're visible and dangerous
+    Position rock1(12, 7);   // Above tunnel at row 8
+    Position rock2(28, 7);   // Above tunnel at row 8
+    Position rock3(15, 14);  // Above tunnel at row 15
+    Position rock4(25, 14);  // Above tunnel at row 15
+    Position rock5(18, 21);  // Above tunnel at row 22
     
     initialRockPositions.push_back(rock1);
     initialRockPositions.push_back(rock2);
@@ -267,15 +247,14 @@ void TerrainGrid::createDefaultLevel() {
     for (const auto& rockPos : initialRockPositions) {
         if (rockPos.isValid()) {
             blocks[rockPos.x][rockPos.y] = BlockType::ROCK;
-            std::cout << "ROCK PLACED at (" << rockPos.x << ", " << rockPos.y << ") - will fall when dug below!" << std::endl;
+            std::cout << "DEFAULT ROCK PLACED at (" << rockPos.x << ", " << rockPos.y << ")" << std::endl;
         }
     }
     
-    std::cout << "Authentic Dig Dug level created with:" << std::endl;
-    std::cout << "- " << monsterPositions.size() << " monsters in narrow tunnels" << std::endl;
-    std::cout << "- " << initialRockPositions.size() << " rocks positioned to fall strategically" << std::endl;
-    std::cout << "- Player starts at surface (" << playerStartPosition.x << ", " << playerStartPosition.y << ")" << std::endl;
-    std::cout << "- Narrow tunnel system like authentic Dig Dug!" << std::endl;
+    std::cout << "Default level created with:" << std::endl;
+    std::cout << "- " << monsterPositions.size() << " monsters" << std::endl;
+    std::cout << "- " << initialRockPositions.size() << " rocks placed in terrain" << std::endl;
+    std::cout << "- Player starts at (" << playerStartPosition.x << ", " << playerStartPosition.y << ")" << std::endl;
 }
 
 void TerrainGrid::initializeGroundLevel() {
@@ -304,27 +283,6 @@ bool TerrainGrid::validateLevelData() const {
     }
     
     return true;
-}
-
-
-void TerrainGrid::checkAllRocksForFalling() {
-    std::cout << "Checking all rocks for natural falling..." << std::endl;
-    
-    for (int x = 0; x < WORLD_WIDTH; x++) {
-        for (int y = 0; y < WORLD_HEIGHT; y++) {
-            Position rockPos(x, y);
-            if (isBlockRock(rockPos)) {
-                // Check if rock has empty space below it
-                Position belowPos = rockPos;
-                belowPos.y++;
-                
-                if (isValidPosition(belowPos) && isBlockEmpty(belowPos)) {
-                    std::cout << "Rock at (" << x << ", " << y << ") has no support - triggering fall!" << std::endl;
-                    triggerRockFall(rockPos);
-                }
-            }
-        }
-    }
 }
 
 raylib::Color TerrainGrid::getBlockColor(const Position& pos) const {

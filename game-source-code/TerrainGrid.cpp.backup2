@@ -306,27 +306,6 @@ bool TerrainGrid::validateLevelData() const {
     return true;
 }
 
-
-void TerrainGrid::checkAllRocksForFalling() {
-    std::cout << "Checking all rocks for natural falling..." << std::endl;
-    
-    for (int x = 0; x < WORLD_WIDTH; x++) {
-        for (int y = 0; y < WORLD_HEIGHT; y++) {
-            Position rockPos(x, y);
-            if (isBlockRock(rockPos)) {
-                // Check if rock has empty space below it
-                Position belowPos = rockPos;
-                belowPos.y++;
-                
-                if (isValidPosition(belowPos) && isBlockEmpty(belowPos)) {
-                    std::cout << "Rock at (" << x << ", " << y << ") has no support - triggering fall!" << std::endl;
-                    triggerRockFall(rockPos);
-                }
-            }
-        }
-    }
-}
-
 raylib::Color TerrainGrid::getBlockColor(const Position& pos) const {
     switch (blocks[pos.x][pos.y]) {
         case BlockType::SOLID:

@@ -52,7 +52,6 @@ public:
     void triggerRockFall(const Position& rockPos);  // NEW: Trigger specific rock to fall
     std::vector<Position> getTriggeredRockFalls();  // NEW: Get and clear triggered falls
     void removeRockAt(const Position& pos);
-    void checkAllRocksForFalling();  // Check all rocks for natural falling
     
 private:
     void createDefaultLevel();
