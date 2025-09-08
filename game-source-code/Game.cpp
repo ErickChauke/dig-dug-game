@@ -31,7 +31,9 @@ void Game::setupLevel() {
     }
     
     fallingRocks.clear();
+    powerUps.clear();
     
+    // Only check rock stability ONCE at level start
     terrain.checkAllRocksForFalling();
     checkForTriggeredRockFalls();
     
@@ -143,8 +145,9 @@ void Game::update(float deltaTime) {
         
         checkForTriggeredRockFalls();
         
+        // Check for cascading rock falls less frequently to reduce spam
         rockFallCheckTimer += deltaTime;
-        if (rockFallCheckTimer >= 0.1f) {
+        if (rockFallCheckTimer >= 0.5f) { // Reduced from 0.1f to 0.5f
             checkForCascadingRockFalls();
             rockFallCheckTimer = 0.0f;
         }
@@ -382,28 +385,22 @@ void Game::drawGameOver() const {
 }
 
 void Game::drawHUD() const {
-    DrawRectangle(0, 0, 800, 40, ColorAlpha(BLACK, 0.9f));
+    DrawRectangle(0, 0, 800, 50, ColorAlpha(BLACK, 0.9f));
     
-    const char* scoreText = TextFormat("Score: %d", score);
-    const char* levelText = TextFormat("Level: %d/5", level);
-    const char* timeText = TextFormat("Time: %.1fs", gameTime);
-    const char* harpoonsText = TextFormat("Harpoons: %d", (int)projectiles.size());
-    const char* powerUpsText = TextFormat("PowerUps: %d", (int)powerUps.size());
-    const char* rocksText = TextFormat("Rocks: %d", (int)fallingRocks.size());
-    const char* killedText = TextFormat("Killed: %d", monstersKilled);
+    DrawText(TextFormat("Score: %d", score), 10, 5, 16, getScoreColor());
+    DrawText(TextFormat("Level: %d/5", level), 150, 5, 16, getLevelColor());
+    DrawText(TextFormat("Time: %.1fs", gameTime), 250, 5, 16, WHITE);
+    DrawText(TextFormat("Killed: %d", monstersKilled), 370, 5, 16, RED);
     
-    DrawText(scoreText, 10, 10, 20, getScoreColor());
-    DrawText(levelText, 130, 10, 20, getLevelColor());
-    DrawText(timeText, 230, 10, 20, WHITE);
-    DrawText(harpoonsText, 340, 10, 20, LIME);
-    DrawText(powerUpsText, 470, 10, 20, PURPLE);
-    DrawText(rocksText, 590, 10, 20, YELLOW);
-    DrawText(killedText, 690, 10, 20, RED);
+    DrawText(TextFormat("Harpoons: %d", (int)projectiles.size()), 10, 25, 16, LIME);
+    DrawText(TextFormat("PowerUps: %d", (int)powerUps.size()), 150, 25, 16, PURPLE);
+    DrawText(TextFormat("Rocks: %d", (int)fallingRocks.size()), 250, 25, 16, YELLOW);
+    DrawText(TextFormat("Monsters: %d", (int)monsters.size()), 370, 25, 16, ORANGE);
     
     if (!monsters.empty()) {
         DrawRectangle(0, 560, 800, 40, ColorAlpha(BLACK, 0.9f));
         int xOffset = 10;
-        for (size_t i = 0; i < monsters.size() && i < 6; ++i) {
+        for (size_t i = 0; i < monsters.size() && i < 5; ++i) {
             const char* stateText = "";
             Color stateColor = WHITE;
             switch (monsters[i].getBehaviorState()) {
@@ -421,9 +418,9 @@ void Game::drawHUD() const {
                     break;
             }
             const char* typeText = (monsters[i].getType() == Monster::RED_MONSTER) ? "Red" : "Dragon";
-            const char* monsterStatusText = TextFormat("%s %d: %s", typeText, (int)i+1, stateText);
-            DrawText(monsterStatusText, xOffset, 570, 14, stateColor);
-            xOffset += 130;
+            DrawText(TextFormat("%s %d:", typeText, (int)i+1), xOffset, 565, 12, WHITE);
+            DrawText(stateText, xOffset, 580, 12, stateColor);
+            xOffset += 150;
         }
     }
 }
@@ -555,11 +552,22 @@ void Game::checkPowerUpCollisions() {
     
     for (auto it = powerUps.begin(); it != powerUps.end(); ) {
         if (it->getPosition() == playerPos && !it->isCollected()) {
-            player.applyPowerUp(it->getType(), it->getDuration());
+            PowerUp::PowerUpType type = it->getType();
+            float duration = it->getDuration();
+            
+            player.applyPowerUp(type, duration);
             it->collect();
             addScore(50 + (level * 25));
             
-            std::cout << "Power-up collected!" << std::endl;
+            const char* powerUpName = "";
+            switch (type) {
+                case PowerUp::SPEED_BOOST: powerUpName = "Speed Boost"; break;
+                case PowerUp::EXTENDED_RANGE: powerUpName = "Extended Range"; break;
+                case PowerUp::RAPID_FIRE: powerUpName = "Rapid Fire"; break;
+                case PowerUp::INVULNERABILITY: powerUpName = "Invulnerability"; break;
+            }
+            
+            std::cout << powerUpName << " power-up collected!" << std::endl;
             it = powerUps.erase(it);
         } else {
             ++it;

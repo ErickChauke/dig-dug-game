@@ -7,9 +7,8 @@ Player::Player(const Position& startPos)
       moveSpeed(5.0f), baseMoveSpeed(5.0f), isMoving(false), 
       shootCooldown(0.0f), baseShootCooldown(1.0f), 
       harpoonRange(8), baseHarpoonRange(8), worldTerrain(nullptr),
-      moveTimer(0.0f), moveInterval(0.15f) {  // NEW: 0.15s between moves
+      moveTimer(0.0f), moveInterval(0.15f) {
     
-    // Initialize power-up effects
     powerUps.speedBoost = false;
     powerUps.extendedRange = false;
     powerUps.rapidFire = false;
@@ -25,7 +24,6 @@ void Player::setTerrain(TerrainGrid* terrain) {
 }
 
 void Player::handleInput() {
-    // Only process movement if enough time has passed
     if (moveTimer <= 0.0f) {
         movingDirection = NONE;
         
@@ -50,7 +48,7 @@ void Player::applyPowerUp(PowerUp::PowerUpType type, float duration) {
         case PowerUp::SPEED_BOOST:
             powerUps.speedBoost = true;
             powerUps.speedBoostTimer = duration;
-            moveInterval = 0.08f; // Faster movement when boosted
+            moveInterval = 0.08f;
             std::cout << "Speed boost activated!" << std::endl;
             break;
             
@@ -103,12 +101,12 @@ void Player::digAt(Position spot) {
         worldTerrain->digTunnelAt(spot);
         std::cout << "Dug tunnel at (" << spot.x << ", " << spot.y << ")" << std::endl;
         
-        // CRITICAL: Check for rocks above the dug position
+        // Check for rocks above - but don't spam rock stability checks
         Position abovePos = spot;
         abovePos.y--;
         if (worldTerrain->isBlockRock(abovePos)) {
             worldTerrain->triggerRockFall(abovePos);
-            std::cout << "ROCK FALL TRIGGERED! Rock at (" << abovePos.x << ", " << abovePos.y << ") will fall!" << std::endl;
+            std::cout << "Rock triggered above dig site!" << std::endl;
         }
     }
 }
@@ -124,7 +122,7 @@ bool Player::isReloading() const {
 }
 
 void Player::update(float deltaTime) {
-    updateMovement(deltaTime); // NEW: Update movement timer first
+    updateMovement(deltaTime);
     handleInput();
     updateShooting(deltaTime);
     updatePowerUps(deltaTime);
@@ -143,16 +141,16 @@ void Player::updateMovement(float deltaTime) {
 void Player::draw() const {
     Position pixelPos = location.toPixels();
     
-    // Base player color
     raylib::Color playerColor = YELLOW;
     
-    // Modify color based on power-ups
+    // Strong visual feedback for invulnerability
     if (powerUps.invulnerable) {
-        // Flashing effect for invulnerability
         static float flashTimer = 0.0f;
-        flashTimer += 0.1f;
+        flashTimer += 0.15f;
         if ((int)(flashTimer * 10) % 2 == 0) {
-            playerColor = ColorAlpha(GOLD, 0.7f);
+            playerColor = ColorAlpha(GOLD, 0.8f);
+        } else {
+            playerColor = ColorAlpha(WHITE, 0.8f);
         }
     } else if (powerUps.speedBoost) {
         playerColor = ORANGE;
@@ -197,7 +195,6 @@ void Player::draw() const {
                 pixelPos.x - 10, pixelPos.y + yOffset, 8, GOLD);
     }
     
-    // Reload indicator
     if (isReloading()) {
         DrawCircle(pixelPos.x + Position::BLOCK_SIZE/2, 
                    pixelPos.y - 5, 4, RED);
@@ -219,28 +216,22 @@ void Player::moveInDirection(Direction dir) {
         return;
     }
     
-    // GROUND LEVEL BOUNDARY: Cannot go above row 6 (ground level)
     if (newPos.y < 3) {
         std::cout << "Cannot go above ground level!" << std::endl;
         return;
     }
     
-    // DIG DUG MOVEMENT RULES:
     if (worldTerrain) {
         if (worldTerrain->isBlockEmpty(newPos)) {
-            // Free movement into empty space
             location = newPos;
             movingDirection = dir;
         } else if (worldTerrain->isBlockSolid(newPos)) {
-            // Dig into solid earth and move - THIS TRIGGERS ROCK FALLS
-            digAt(newPos);  // This will check for rocks above
+            digAt(newPos);
             location = newPos;
             movingDirection = dir;
             std::cout << "Dug and moved to (" << newPos.x << ", " << newPos.y << ")" << std::endl;
         }
-        // If it's a rock, can't move (rocks block movement until they fall)
     } else {
-        // No terrain system, just move
         location = newPos;
         movingDirection = dir;
     }
@@ -262,17 +253,15 @@ void Player::updateShooting(float deltaTime) {
 }
 
 void Player::updatePowerUps(float deltaTime) {
-    // Update speed boost
     if (powerUps.speedBoost) {
         powerUps.speedBoostTimer -= deltaTime;
         if (powerUps.speedBoostTimer <= 0.0f) {
             powerUps.speedBoost = false;
-            moveInterval = 0.15f; // Return to normal speed
+            moveInterval = 0.15f;
             std::cout << "Speed boost expired" << std::endl;
         }
     }
     
-    // Update extended range
     if (powerUps.extendedRange) {
         powerUps.extendedRangeTimer -= deltaTime;
         if (powerUps.extendedRangeTimer <= 0.0f) {
@@ -282,7 +271,6 @@ void Player::updatePowerUps(float deltaTime) {
         }
     }
     
-    // Update rapid fire
     if (powerUps.rapidFire) {
         powerUps.rapidFireTimer -= deltaTime;
         if (powerUps.rapidFireTimer <= 0.0f) {
@@ -292,7 +280,6 @@ void Player::updatePowerUps(float deltaTime) {
         }
     }
     
-    // Update invulnerability
     if (powerUps.invulnerable) {
         powerUps.invulnerableTimer -= deltaTime;
         if (powerUps.invulnerableTimer <= 0.0f) {
