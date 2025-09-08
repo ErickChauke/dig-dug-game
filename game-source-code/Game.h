@@ -60,7 +60,7 @@ public:
     void pauseToggle();
     
 private:
-    void setupLevel(); // NEW: Set up game based on loaded level data
+    void setupLevel();
     
     void drawSplashScreen() const;
     void drawGameplay() const;
@@ -79,7 +79,8 @@ private:
     void checkProjectileCollisions();
     void checkPowerUpCollisions();
     void checkFallingRockCollisions();
-    void checkForRockFalls(); // NEW: Check for rocks that should fall
+    void checkForTriggeredRockFalls(); // Authentic dig-triggered rock falls
+    void checkForRockFalls(); // Legacy method (now unused)
     
     void spawnPowerUp();
     void spawnRandomPowerUp(const Position& pos);

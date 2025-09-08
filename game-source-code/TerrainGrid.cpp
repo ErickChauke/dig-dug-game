@@ -2,11 +2,21 @@
 #include <fstream>
 #include <iostream>
 
-TerrainGrid::TerrainGrid() {
+TerrainGrid::TerrainGrid() : levelLoaded(false) {
+    // Initialize all blocks as solid first
+    for (int x = 0; x < WORLD_WIDTH; x++) {
+        for (int y = 0; y < WORLD_HEIGHT; y++) {
+            blocks[x][y] = BlockType::SOLID;
+        }
+    }
+    
     // Try to load from file, fall back to default if it fails
     if (!loadFromFile("resources/level1.txt")) {
+        std::cout << "Level file not found, creating default level with visible rocks..." << std::endl;
         createDefaultLevel();
     }
+    
+    levelLoaded = true;
 }
 
 bool TerrainGrid::loadFromFile(const std::string& filename) {
@@ -22,12 +32,19 @@ bool TerrainGrid::loadFromFile(const std::string& filename) {
     // Clear existing data
     initialRockPositions.clear();
     monsterPositions.clear();
-    playerStartPosition = Position(10, 10); // Default fallback
+    playerStartPosition = Position(39, 6); // Default from level file
+    
+    std::cout << "Loading level from: " << filename << std::endl;
     
     while (std::getline(file, line) && y < WORLD_HEIGHT) {
-        // Skip comment lines
+        // Skip comment lines and empty lines
         if (line.empty() || line[0] == '#') {
             continue;
+        }
+        
+        // Ensure line is long enough
+        if (line.length() < WORLD_WIDTH) {
+            line.resize(WORLD_WIDTH, 'W'); // Pad with walls
         }
         
         for (int x = 0; x < WORLD_WIDTH && x < (int)line.length(); x++) {
@@ -44,18 +61,22 @@ bool TerrainGrid::loadFromFile(const std::string& filename) {
                 case 'R':
                     blocks[x][y] = BlockType::ROCK;
                     initialRockPositions.push_back(pos);
+                    std::cout << "ROCK LOADED at (" << pos.x << ", " << pos.y << ")" << std::endl;
                     break;
                 case 'P':
                     blocks[x][y] = BlockType::EMPTY;
                     playerStartPosition = pos;
+                    std::cout << "Player start position: (" << pos.x << ", " << pos.y << ")" << std::endl;
                     break;
                 case 'M':
                     blocks[x][y] = BlockType::EMPTY;
                     monsterPositions.push_back(pos);
+                    std::cout << "Monster position: (" << pos.x << ", " << pos.y << ")" << std::endl;
                     break;
                 case 'D':
                     blocks[x][y] = BlockType::EMPTY;
                     monsterPositions.push_back(pos);
+                    std::cout << "Dragon position: (" << pos.x << ", " << pos.y << ")" << std::endl;
                     break;
                 default:
                     blocks[x][y] = BlockType::SOLID;
@@ -66,9 +87,32 @@ bool TerrainGrid::loadFromFile(const std::string& filename) {
     }
     
     file.close();
-    std::cout << "Loaded level: " << initialRockPositions.size() << " rocks, " 
-              << monsterPositions.size() << " monsters" << std::endl;
+    
+    // Validate level data
+    if (!validateLevelData()) {
+        std::cout << "Level validation failed, using default level" << std::endl;
+        return false;
+    }
+    
+    std::cout << "Level loaded successfully:" << std::endl;
+    std::cout << "- Rocks: " << initialRockPositions.size() << std::endl;
+    std::cout << "- Monsters: " << monsterPositions.size() << std::endl;
+    std::cout << "- Player start: (" << playerStartPosition.x << ", " << playerStartPosition.y << ")" << std::endl;
+    
     return true;
+}
+
+void TerrainGrid::triggerRockFall(const Position& rockPos) {
+    if (isBlockRock(rockPos)) {
+        triggeredRockFalls.push_back(rockPos);
+        std::cout << "Rock fall triggered at (" << rockPos.x << ", " << rockPos.y << ")" << std::endl;
+    }
+}
+
+std::vector<Position> TerrainGrid::getTriggeredRockFalls() {
+    std::vector<Position> result = triggeredRockFalls;
+    triggeredRockFalls.clear();  // Clear after returning
+    return result;
 }
 
 bool TerrainGrid::isBlockSolid(const Position& pos) const {
@@ -116,6 +160,12 @@ bool TerrainGrid::isValidPosition(const Position& pos) const {
            pos.y >= 0 && pos.y < WORLD_HEIGHT;
 }
 
+void TerrainGrid::removeRockAt(const Position& pos) {
+    if (isValidPosition(pos) && isBlockRock(pos)) {
+        setBlock(pos, BlockType::EMPTY);
+    }
+}
+
 void TerrainGrid::draw() const {
     for (int x = 0; x < WORLD_WIDTH; x++) {
         for (int y = 0; y < WORLD_HEIGHT; y++) {
@@ -131,48 +181,119 @@ void TerrainGrid::draw() const {
 }
 
 void TerrainGrid::createDefaultLevel() {
-    // Initialize all blocks as solid earth
+    std::cout << "Creating default level with visible rocks..." << std::endl;
+    
+    // Initialize ground level - sky above row 7
     for (int x = 0; x < WORLD_WIDTH; x++) {
-        for (int y = 0; y < WORLD_HEIGHT; y++) {
+        for (int y = 0; y < 7; y++) {
+            blocks[x][y] = BlockType::EMPTY;
+        }
+    }
+    
+    // Ground level (row 7 and below are solid earth)
+    for (int x = 0; x < WORLD_WIDTH; x++) {
+        for (int y = 7; y < WORLD_HEIGHT; y++) {
             blocks[x][y] = BlockType::SOLID;
         }
     }
     
     // Create starting tunnels
-    for (int x = 5; x < 25; x++) {
-        blocks[x][8] = BlockType::EMPTY;
-        blocks[x][9] = BlockType::EMPTY;
+    for (int x = 10; x < 70; x++) {
+        blocks[x][7] = BlockType::EMPTY; 
+        blocks[x][8] = BlockType::EMPTY; 
     }
     
-    for (int y = 10; y < 20; y++) {
-        blocks[10][y] = BlockType::EMPTY;
+    // Create vertical shafts
+    for (int y = 9; y < 20; y++) {
         blocks[20][y] = BlockType::EMPTY;
+        blocks[40][y] = BlockType::EMPTY;
+        blocks[60][y] = BlockType::EMPTY;
     }
     
-    // Set player start
-    playerStartPosition = Position(10, 10);
+    // Create horizontal tunnels with space above for rocks
+    for (int x = 15; x < 65; x++) {
+        blocks[x][15] = BlockType::EMPTY;  // Tunnel at row 15
+        blocks[x][25] = BlockType::EMPTY;  // Tunnel at row 25
+        blocks[x][35] = BlockType::EMPTY;  // Tunnel at row 35
+    }
     
-    // Add some monsters
-    monsterPositions = {Position(25, 15), Position(35, 25), Position(45, 35)};
+    // Set player start position
+    playerStartPosition = Position(39, 7);  // Start on surface
     
-    // Add some rocks
-    initialRockPositions = {Position(30, 9), Position(40, 24)};
+    // Add monsters in strategic locations
+    monsterPositions.clear();
+    monsterPositions.push_back(Position(18, 27));
+    monsterPositions.push_back(Position(48, 27));
+    monsterPositions.push_back(Position(18, 38));
+    monsterPositions.push_back(Position(48, 38));
+    
+    // CRITICAL: Add VISIBLE rocks strategically placed ABOVE tunnels
+    initialRockPositions.clear();
+    
+    // Rocks positioned directly above tunnels so they're visible and dangerous
+    Position rock1(25, 14);  // Above tunnel at row 15
+    Position rock2(55, 14);  // Above tunnel at row 15
+    Position rock3(30, 24);  // Above tunnel at row 25
+    Position rock4(50, 24);  // Above tunnel at row 25
+    Position rock5(35, 34);  // Above tunnel at row 35
+    
+    initialRockPositions.push_back(rock1);
+    initialRockPositions.push_back(rock2);
+    initialRockPositions.push_back(rock3);
+    initialRockPositions.push_back(rock4);
+    initialRockPositions.push_back(rock5);
+    
+    // IMPORTANT: Actually place rocks in terrain blocks
     for (const auto& rockPos : initialRockPositions) {
-        blocks[rockPos.x][rockPos.y] = BlockType::ROCK;
+        if (rockPos.isValid()) {
+            blocks[rockPos.x][rockPos.y] = BlockType::ROCK;
+            std::cout << "DEFAULT ROCK PLACED at (" << rockPos.x << ", " << rockPos.y << ")" << std::endl;
+        }
     }
     
-    std::cout << "Created default level" << std::endl;
+    std::cout << "Default level created with:" << std::endl;
+    std::cout << "- " << monsterPositions.size() << " monsters" << std::endl;
+    std::cout << "- " << initialRockPositions.size() << " rocks placed in terrain" << std::endl;
+    std::cout << "- Player starts at (" << playerStartPosition.x << ", " << playerStartPosition.y << ")" << std::endl;
+}
+
+void TerrainGrid::initializeGroundLevel() {
+    // This method is no longer used - createDefaultLevel handles everything
+}
+
+bool TerrainGrid::validateLevelData() const {
+    // Check if player start position is valid
+    if (!playerStartPosition.isValid()) {
+        std::cout << "Invalid player start position" << std::endl;
+        return false;
+    }
+    
+    // Check if we have at least one monster
+    if (monsterPositions.empty()) {
+        std::cout << "No monsters found in level" << std::endl;
+        return false;
+    }
+    
+    // Validate monster positions
+    for (const auto& pos : monsterPositions) {
+        if (!pos.isValid()) {
+            std::cout << "Invalid monster position: (" << pos.x << ", " << pos.y << ")" << std::endl;
+            return false;
+        }
+    }
+    
+    return true;
 }
 
 raylib::Color TerrainGrid::getBlockColor(const Position& pos) const {
     switch (blocks[pos.x][pos.y]) {
         case BlockType::SOLID:
-            return raylib::Color::Brown();
+            return raylib::Color(139, 69, 19, 255); // Brown
         case BlockType::EMPTY:
-            return raylib::Color::Black();
+            return raylib::Color(0, 0, 0, 255); // Black
         case BlockType::ROCK:
-            return raylib::Color::Gray();
+            return raylib::Color(128, 128, 128, 255); // Gray - ROCKS SHOULD BE VISIBLE
         default:
-            return raylib::Color::Black();
+            return raylib::Color(0, 0, 0, 255); // Black
     }
 }

@@ -22,6 +22,8 @@ private:
     std::vector<Position> initialRockPositions;
     Position playerStartPosition;
     std::vector<Position> monsterPositions;
+    bool levelLoaded;
+    std::vector<Position> triggeredRockFalls;  // NEW: Track triggered rock falls
     
 public:
     TerrainGrid();
@@ -37,17 +39,25 @@ public:
     void setBlock(const Position& pos, BlockType type);
     
     bool isValidPosition(const Position& pos) const;
+    bool isLevelLoaded() const { return levelLoaded; }
     
     void draw() const;
     
-    // Get initial positions from loaded level
+    // Enhanced position getters
     Position getPlayerStartPosition() const { return playerStartPosition; }
     const std::vector<Position>& getMonsterPositions() const { return monsterPositions; }
     const std::vector<Position>& getInitialRockPositions() const { return initialRockPositions; }
     
+    // Rock management - AUTHENTIC DIG DUG STYLE
+    void triggerRockFall(const Position& rockPos);  // NEW: Trigger specific rock to fall
+    std::vector<Position> getTriggeredRockFalls();  // NEW: Get and clear triggered falls
+    void removeRockAt(const Position& pos);
+    
 private:
     void createDefaultLevel();
+    void initializeGroundLevel();
     raylib::Color getBlockColor(const Position& pos) const;
+    bool validateLevelData() const;
 };
 
 #endif // TERRAINGRID_H

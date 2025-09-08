@@ -3,7 +3,6 @@
 
 #include "GameThing.h"
 #include "Interfaces.h"
-#include "Projectile.h"
 #include "PowerUp.h"
 #include <raylib-cpp.hpp>
 
@@ -48,7 +47,6 @@ public:
     void handleInput();
     
     Direction getFacingDirection() const { return facingDirection; }
-    Projectile* createProjectile() const;
     
     // Power-up system
     void applyPowerUp(PowerUp::PowerUpType type, float duration);
@@ -83,7 +81,6 @@ private:
     void updateFacingDirection();
     void updateShooting(float deltaTime);
     void updatePowerUps(float deltaTime);
-    Projectile::Direction convertToProjectileDirection(Direction dir) const;
 };
 
 #endif // PLAYER_H

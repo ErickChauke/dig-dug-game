@@ -37,23 +37,6 @@ void Player::handleInput() {
     }
 }
 
-Projectile* Player::createProjectile() const {
-    if (isReloading()) {
-        return nullptr;
-    }
-    
-    Projectile::Direction projDir = convertToProjectileDirection(facingDirection);
-    Projectile* harpoon = new Projectile(location, projDir);
-    
-    // Apply extended range if active
-    if (powerUps.extendedRange) {
-        // Projectile will need to be modified to accept range parameter
-        std::cout << "Extended range harpoon created!" << std::endl;
-    }
-    
-    return harpoon;
-}
-
 void Player::applyPowerUp(PowerUp::PowerUpType type, float duration) {
     switch (type) {
         case PowerUp::SPEED_BOOST:
@@ -110,6 +93,15 @@ bool Player::canDigAt(Position spot) const {
 void Player::digAt(Position spot) {
     if (canDigAt(spot)) {
         worldTerrain->digTunnelAt(spot);
+        std::cout << "Dug tunnel at (" << spot.x << ", " << spot.y << ")" << std::endl;
+        
+        // CRITICAL: Check for rocks above the dug position
+        Position abovePos = spot;
+        abovePos.y--;
+        if (worldTerrain->isBlockRock(abovePos)) {
+            worldTerrain->triggerRockFall(abovePos);
+            std::cout << "ROCK FALL TRIGGERED! Rock at (" << abovePos.x << ", " << abovePos.y << ") will fall!" << std::endl;
+        }
     }
 }
 
@@ -205,10 +197,34 @@ void Player::moveInDirection(Direction dir) {
         default: return;
     }
     
-    if (newPos.isValid()) {
+    if (!newPos.isValid()) {
+        return;
+    }
+    
+    // GROUND LEVEL BOUNDARY: Cannot go above row 6 (ground level)
+    if (newPos.y < 6) {
+        std::cout << "Cannot go above ground level!" << std::endl;
+        return;
+    }
+    
+    // DIG DUG MOVEMENT RULES:
+    if (worldTerrain) {
+        if (worldTerrain->isBlockEmpty(newPos)) {
+            // Free movement into empty space
+            location = newPos;
+            movingDirection = dir;
+        } else if (worldTerrain->isBlockSolid(newPos)) {
+            // Dig into solid earth and move - THIS TRIGGERS ROCK FALLS
+            digAt(newPos);  // This will check for rocks above
+            location = newPos;
+            movingDirection = dir;
+            std::cout << "Dug and moved to (" << newPos.x << ", " << newPos.y << ")" << std::endl;
+        }
+        // If it's a rock, can't move (rocks block movement until they fall)
+    } else {
+        // No terrain system, just move
         location = newPos;
         movingDirection = dir;
-        digAt(location);
     }
 }
 
@@ -265,15 +281,5 @@ void Player::updatePowerUps(float deltaTime) {
             powerUps.invulnerable = false;
             std::cout << "Invulnerability expired" << std::endl;
         }
-    }
-}
-
-Projectile::Direction Player::convertToProjectileDirection(Direction dir) const {
-    switch (dir) {
-        case UP:    return Projectile::UP;
-        case DOWN:  return Projectile::DOWN;
-        case LEFT:  return Projectile::LEFT;
-        case RIGHT: return Projectile::RIGHT;
-        default:    return Projectile::RIGHT;
     }
 }

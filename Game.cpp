@@ -9,34 +9,22 @@ Game::Game() : showSplashScreen(true), splashTimer(0.0f),
     
     setupLevel();
     audioManager = AudioManager::getInstance();
-    std::cout << "Game initialized with PERSISTENT ROCK FALLING system" << std::endl;
+    std::cout << "Game initialized with player-relative harpoon system" << std::endl;
 }
 
 void Game::setupLevel() {
-    Position startPos = terrain.getPlayerStartPosition();
-    player = Player(startPos);
+    player = Player(terrain.getPlayerStartPosition());
     player.setTerrain(&terrain);
-    
-    std::cout << "Player spawned at: (" << startPos.x << ", " << startPos.y << ")" << std::endl;
     
     monsters.clear();
     const auto& monsterPositions = terrain.getMonsterPositions();
     for (size_t i = 0; i < monsterPositions.size(); i++) {
         Monster::MonsterType type = (i % 3 == 0) ? Monster::GREEN_DRAGON : Monster::RED_MONSTER;
         monsters.emplace_back(monsterPositions[i], type);
-        std::cout << "Monster spawned at: (" << monsterPositions[i].x << ", " << monsterPositions[i].y << ")" << std::endl;
     }
     
     fallingRocks.clear();
-    
-    const auto& rockPositions = terrain.getInitialRockPositions();
-    std::cout << "=== PERSISTENT FALLING ROCKS READY ===" << std::endl;
-    for (const auto& rockPos : rockPositions) {
-        std::cout << "Rock at (" << rockPos.x << ", " << rockPos.y << ") - will fall persistently when triggered!" << std::endl;
-    }
-    std::cout << "==========================================" << std::endl;
-    
-    std::cout << "Level setup complete: " << monsters.size() << " monsters spawned" << std::endl;
+    std::cout << "Level setup: " << monsters.size() << " monsters spawned" << std::endl;
 }
 
 void Game::addScore(int points) {
@@ -102,6 +90,7 @@ void Game::update(float deltaTime) {
         updatePowerUps(deltaTime);
         updateFallingRocks(deltaTime);
         
+        // FIXED: Player-relative harpoon firing
         if (IsKeyPressed(KEY_SPACE)) {
             if (!player.isReloading()) {
                 int playerFacing = static_cast<int>(player.getFacingDirection());
@@ -116,13 +105,15 @@ void Game::update(float deltaTime) {
                 }
                 
                 int range = player.getCurrentHarpoonRange();
+                
+                // Pass player pointer for relative positioning
                 Projectile* newProjectile = new Projectile(&player, projDir, range);
                 
                 if (newProjectile) {
                     projectiles.emplace_back(std::unique_ptr<Projectile>(newProjectile));
                     player.fireWeapon();
                     audioManager->playHarpoonFire();
-                    std::cout << "Player-relative harpoon fired" << std::endl;
+                    std::cout << "Player-relative harpoon fired in direction " << playerFacing << std::endl;
                 }
             }
         }
@@ -133,7 +124,11 @@ void Game::update(float deltaTime) {
             powerUpSpawnTimer = 0.0f;
         }
         
-        checkForTriggeredRockFalls();
+        rockFallCheckTimer += deltaTime;
+        if (rockFallCheckTimer >= 2.0f) {
+            checkForRockFalls();
+            rockFallCheckTimer = 0.0f;
+        }
         
         checkCollisions();
         checkProjectileCollisions();
@@ -190,30 +185,27 @@ void Game::draw() const {
 }
 
 void Game::drawSplashScreen() const {
-    DrawText("DIG DUG - PERSISTENT FALLING ROCKS", 240, 180, 40, WHITE);
-    DrawText("Rocks now fall persistently until they land!", 230, 230, 18, YELLOW);
+    DrawText("DIG DUG - PLAYER-RELATIVE HARPOON", 240, 180, 40, WHITE);
+    DrawText("Harpoon now moves with player!", 260, 230, 18, YELLOW);
     
     DrawText("Arrow Keys: Move & Dig", 290, 320, 18, GREEN);
     DrawText("Spacebar: Fire Player-Relative Harpoon", 240, 350, 18, GREEN);
     DrawText("P: Pause Game", 320, 380, 18, BLUE);
     
-    DrawText("Fixed Rock Mechanics:", 260, 420, 16, PURPLE);
-    DrawText("- Rocks continue falling until they hit ground", 260, 440, 14, WHITE);
-    DrawText("- Bright yellow color with position tracking", 260, 460, 14, WHITE);
-    DrawText("- Detailed console output for debugging", 260, 480, 14, WHITE);
-    DrawText("- No premature disappearing!", 260, 500, 14, RED);
+    DrawText("Power-ups:", 300, 420, 16, PURPLE);
+    DrawText("Blue=Speed, Green=Range, Orange=Rapid, Purple=Shield", 180, 440, 14, WHITE);
+    DrawText("Authentic tethered harpoon mechanics!", 260, 460, 16, RED);
     
     static int frameCounter = 0;
     frameCounter++;
     if ((frameCounter / 30) % 2 == 0) {
-        DrawText("Press SPACE or ENTER to start...", 220, 540, 16, WHITE);
+        DrawText("Press SPACE or ENTER to start...", 220, 500, 16, WHITE);
     }
 }
 
 void Game::drawGameplay() const {
     terrain.draw();
     
-    // Ensure falling rocks are drawn prominently
     for (const auto& rock : fallingRocks) {
         rock.draw();
     }
@@ -307,7 +299,7 @@ void Game::drawHUD() const {
     
     DrawText(TextFormat("Harpoons: %d", (int)projectiles.size()), 380, 10, 18, LIME);
     DrawText(TextFormat("PowerUps: %d", (int)powerUps.size()), 520, 10, 18, PURPLE);
-    DrawText(TextFormat("Persistent Rocks: %d", (int)fallingRocks.size()), 600, 10, 18, YELLOW);
+    DrawText(TextFormat("Rocks: %d", (int)fallingRocks.size()), 650, 10, 18, GRAY);
     
     Position playerPos = player.getPosition();
     DrawText(TextFormat("Pos: (%d,%d)", playerPos.x, playerPos.y), 10, 25, 12, GREEN);
@@ -393,27 +385,15 @@ void Game::updatePowerUps(float deltaTime) {
 }
 
 void Game::updateFallingRocks(float deltaTime) {
-    std::cout << "Updating " << fallingRocks.size() << " falling rocks..." << std::endl;
-    
     for (auto& rock : fallingRocks) {
         rock.update(deltaTime);
     }
     
-    size_t beforeCount = fallingRocks.size();
     auto it = std::remove_if(fallingRocks.begin(), fallingRocks.end(),
         [](const FallingRock& rock) { 
-            bool shouldRemove = rock.isLanded();
-            if (shouldRemove) {
-                std::cout << "Removing landed rock from falling rocks list" << std::endl;
-            }
-            return shouldRemove; 
+            return rock.isLanded(); 
         });
     fallingRocks.erase(it, fallingRocks.end());
-    
-    size_t afterCount = fallingRocks.size();
-    if (beforeCount != afterCount) {
-        std::cout << "Falling rocks count: " << beforeCount << " -> " << afterCount << std::endl;
-    }
 }
 
 void Game::checkCollisions() {
@@ -491,7 +471,7 @@ void Game::checkFallingRockCollisions() {
         if (rock.getPosition() == playerPos && !player.isInvulnerable()) {
             gameOver = true;
             playerWon = false;
-            std::cout << "Player crushed by persistent falling rock!" << std::endl;
+            std::cout << "Player crushed by falling rock!" << std::endl;
             return;
         }
         
@@ -500,7 +480,7 @@ void Game::checkFallingRockCollisions() {
                 createExplosion(rock.getPosition());
                 addScore(150);
                 monsterIt = monsters.erase(monsterIt);
-                std::cout << "Monster crushed by persistent falling rock!" << std::endl;
+                std::cout << "Monster crushed by falling rock!" << std::endl;
             } else {
                 ++monsterIt;
             }
@@ -508,28 +488,29 @@ void Game::checkFallingRockCollisions() {
     }
 }
 
-void Game::checkForTriggeredRockFalls() {
-    std::vector<Position> triggeredFalls = terrain.getTriggeredRockFalls();
-    
-    for (const auto& rockPos : triggeredFalls) {
-        bool alreadyFalling = false;
-        for (const auto& rock : fallingRocks) {
-            if (rock.getPosition() == rockPos) {
-                alreadyFalling = true;
-                break;
+void Game::checkForRockFalls() {
+    for (int x = 0; x < Position::WORLD_WIDTH; x++) {
+        for (int y = 0; y < Position::WORLD_HEIGHT - 1; y++) {
+            Position rockPos(x, y);
+            Position belowPos(x, y + 1);
+            
+            if (terrain.isBlockRock(rockPos) && terrain.isBlockEmpty(belowPos)) {
+                bool alreadyFalling = false;
+                for (const auto& rock : fallingRocks) {
+                    if (rock.getPosition() == rockPos) {
+                        alreadyFalling = true;
+                        break;
+                    }
+                }
+                
+                if (!alreadyFalling) {
+                    terrain.setBlock(rockPos, BlockType::EMPTY);
+                    fallingRocks.emplace_back(rockPos);
+                    std::cout << "Rock falls at (" << x << ", " << y << ") - dug underneath!" << std::endl;
+                }
             }
         }
-        
-        if (!alreadyFalling) {
-            terrain.removeRockAt(rockPos);
-            fallingRocks.emplace_back(rockPos, &terrain);
-            std::cout << "*** PERSISTENT ROCK FALL TRIGGERED! *** Rock at (" << rockPos.x << ", " << rockPos.y << ") will fall until it lands!" << std::endl;
-        }
     }
-}
-
-void Game::checkForRockFalls() {
-    // Legacy method - no longer used
 }
 
 void Game::spawnPowerUp() {
