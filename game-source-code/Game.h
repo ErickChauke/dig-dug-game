@@ -79,7 +79,7 @@ private:
     void checkProjectileCollisions();
     void checkPowerUpCollisions();
     void checkFallingRockCollisions();
-    void checkForTriggeredRockFalls(); // Authentic dig-triggered rock falls
+    void checkForTriggeredRockFalls();
     void checkForRockFalls(); // Legacy method (now unused)
     
     void spawnPowerUp();
@@ -88,6 +88,7 @@ private:
     
     int calculateLevelScore() const;
     Color getScoreColor() const;
+    Color getLevelColor() const; // NEW: Level-based color
 };
 
 #endif // GAME_H

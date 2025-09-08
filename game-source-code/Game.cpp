@@ -3,20 +3,22 @@
 #include <cstdlib>
 
 Game::Game() : showSplashScreen(true), splashTimer(0.0f), 
-               player(Position(10, 10)), terrain(), gameOver(false), playerWon(false),
+               player(Position(10, 10)), terrain(1), gameOver(false), playerWon(false),
                score(0), level(1), monstersKilled(0), gameTime(0.0f), isPaused(false),
                explosionTimer(0.0f), powerUpSpawnTimer(0.0f), rockFallCheckTimer(0.0f) {
     
     setupLevel();
     audioManager = AudioManager::getInstance();
-    std::cout << "Game initialized with IMPROVED ROCK FALLING system" << std::endl;
+    std::cout << "Game initialized with MULTI-LEVEL SYSTEM" << std::endl;
 }
 
 void Game::setupLevel() {
+    terrain = TerrainGrid(level);  // Load level-specific terrain
     Position startPos = terrain.getPlayerStartPosition();
     player = Player(startPos);
     player.setTerrain(&terrain);
     
+    std::cout << "=== LEVEL " << level << " SETUP ===" << std::endl;
     std::cout << "Player spawned at: (" << startPos.x << ", " << startPos.y << ")" << std::endl;
     
     monsters.clear();
@@ -30,18 +32,17 @@ void Game::setupLevel() {
     fallingRocks.clear();
     
     const auto& rockPositions = terrain.getInitialRockPositions();
-    std::cout << "=== IMPROVED FALLING ROCKS SYSTEM ===" << std::endl;
+    std::cout << "=== LEVEL " << level << " ROCK SYSTEM ===" << std::endl;
     for (const auto& rockPos : rockPositions) {
         std::cout << "Rock at (" << rockPos.x << ", " << rockPos.y << ") - ready for physics!" << std::endl;
     }
-    std::cout << "=====================================" << std::endl;
+    std::cout << "============================" << std::endl;
     
-    // Check for rocks that should fall naturally (no support) - ONCE ONLY
+    // Check for rocks that should fall naturally
     terrain.checkAllRocksForFalling();
-    
-    // Process any rocks that were triggered to fall
     checkForTriggeredRockFalls();
-    std::cout << "Level setup complete: " << monsters.size() << " monsters spawned" << std::endl;
+    
+    std::cout << "Level " << level << " setup complete: " << monsters.size() << " monsters spawned" << std::endl;
 }
 
 void Game::addScore(int points) {
@@ -63,16 +64,20 @@ void Game::nextLevel() {
     level++;
     addScore(calculateLevelScore());
     
-    terrain = TerrainGrid();
+    // Clear current level state
     projectiles.clear();
     powerUps.clear();
     fallingRocks.clear();
     explosionEffects.clear();
     
+    // Reset timers
+    powerUpSpawnTimer = 0.0f;
+    
     setupLevel();
     
     gameOver = false;
     playerWon = false;
+    gameTime = 0.0f; // Reset level timer
     
     audioManager->playLevelComplete();
     std::cout << "Advanced to level " << level << std::endl;
@@ -132,8 +137,10 @@ void Game::update(float deltaTime) {
             }
         }
         
+        // Progressive power-up spawning based on level
+        float spawnInterval = std::max(15.0f, 35.0f - (level * 3.0f));
         powerUpSpawnTimer += deltaTime;
-        if (powerUpSpawnTimer >= 30.0f) {
+        if (powerUpSpawnTimer >= spawnInterval) {
             spawnPowerUp();
             powerUpSpawnTimer = 0.0f;
         }
@@ -152,19 +159,27 @@ void Game::update(float deltaTime) {
         }
     } else {
         if (IsKeyPressed(KEY_R)) {
+            // Restart from level 1
+            level = 1;
+            score = 0;
+            monstersKilled = 0;
             showSplashScreen = true;
             splashTimer = 0.0f;
             gameOver = false;
             playerWon = false;
             gameTime = 0.0f;
-            terrain = TerrainGrid();
             projectiles.clear();
             powerUps.clear();
             fallingRocks.clear();
             explosionEffects.clear();
             setupLevel();
         } else if (IsKeyPressed(KEY_N) && playerWon) {
-            nextLevel();
+            if (level >= 5) {
+                // Game completed!
+                std::cout << "CONGRATULATIONS! You've completed all levels!" << std::endl;
+            } else {
+                nextLevel();
+            }
         }
     }
 }
@@ -195,10 +210,10 @@ void Game::draw() const {
 }
 
 void Game::drawSplashScreen() const {
-    const char* title = "DIG DUG - IMPROVED PHYSICS";
-    const char* subtitle = "Fixed rock collision system!";
+    const char* title = "DIG DUG - MULTI-LEVEL ADVENTURE";
+    const char* subtitle = "5 Challenging Levels Await!";
     
-    DrawText(title, 400 - MeasureText(title, 40)/2, 180, 40, WHITE);
+    DrawText(title, 400 - MeasureText(title, 36)/2, 180, 36, WHITE);
     DrawText(subtitle, 400 - MeasureText(subtitle, 18)/2, 230, 18, YELLOW);
     
     const char* controls1 = "Arrow Keys: Move & Dig";
@@ -209,11 +224,11 @@ void Game::drawSplashScreen() const {
     DrawText(controls2, 400 - MeasureText(controls2, 18)/2, 350, 18, GREEN);
     DrawText(controls3, 400 - MeasureText(controls3, 18)/2, 380, 18, BLUE);
     
-    const char* features = "Physics Improvements:";
-    const char* feat1 = "- Fixed collision detection gaps";
-    const char* feat2 = "- Eliminated timing race conditions";
-    const char* feat3 = "- Consistent rock physics";
-    const char* feat4 = "- Better state management";
+    const char* features = "Level Features:";
+    const char* feat1 = "Level 1-2: Learn the basics";
+    const char* feat2 = "Level 3-4: Complex challenges";
+    const char* feat3 = "Level 5: Ultimate test";
+    const char* feat4 = "Progressive difficulty & rewards!";
     
     DrawText(features, 400 - MeasureText(features, 16)/2, 420, 16, PURPLE);
     DrawText(feat1, 400 - MeasureText(feat1, 14)/2, 440, 14, WHITE);
@@ -298,14 +313,24 @@ void Game::drawGameOver() const {
     DrawRectangle(0, 0, 800, 600, ColorAlpha(BLACK, 0.7f));
     
     if (playerWon) {
-        DrawText("LEVEL COMPLETE!", 280, 200, 30, GREEN);
-        DrawText(TextFormat("Level %d cleared!", level), 300, 240, 20, WHITE);
-        DrawText(TextFormat("Score: %d", score), 320, 270, 20, YELLOW);
-        DrawText(TextFormat("Time: %.1fs", gameTime), 320, 300, 20, WHITE);
-        DrawText(TextFormat("Monsters killed: %d", monstersKilled), 290, 330, 20, WHITE);
-        
-        DrawText("Press N for next level", 290, 380, 18, GREEN);
-        DrawText("Press R to restart", 310, 410, 18, YELLOW);
+        if (level >= 5) {
+            DrawText("GAME COMPLETED!", 280, 200, 30, GOLD);
+            DrawText("Congratulations, Master Digger!", 240, 240, 20, WHITE);
+            DrawText(TextFormat("Final Score: %d", score), 300, 270, 20, YELLOW);
+            DrawText(TextFormat("Total Monsters: %d", monstersKilled), 280, 300, 20, WHITE);
+            
+            DrawText("You've conquered all 5 levels!", 270, 350, 18, GREEN);
+            DrawText("Press R to play again", 310, 410, 18, YELLOW);
+        } else {
+            DrawText("LEVEL COMPLETE!", 280, 200, 30, GREEN);
+            DrawText(TextFormat("Level %d cleared!", level), 300, 240, 20, WHITE);
+            DrawText(TextFormat("Score: %d", score), 320, 270, 20, YELLOW);
+            DrawText(TextFormat("Time: %.1fs", gameTime), 320, 300, 20, WHITE);
+            DrawText(TextFormat("Monsters killed: %d", monstersKilled), 290, 330, 20, WHITE);
+            
+            DrawText("Press N for next level", 290, 380, 18, GREEN);
+            DrawText("Press R to restart", 310, 410, 18, YELLOW);
+        }
     } else {
         DrawText("GAME OVER", 300, 250, 40, RED);
         DrawText("You were caught!", 290, 300, 20, WHITE);
@@ -320,7 +345,7 @@ void Game::drawHUD() const {
     DrawRectangle(0, 0, 800, 40, ColorAlpha(BLACK, 0.8f));
     
     DrawText(TextFormat("Score: %d", score), 10, 10, 18, getScoreColor());
-    DrawText(TextFormat("Level: %d", level), 150, 10, 18, YELLOW);
+    DrawText(TextFormat("Level: %d/5", level), 150, 10, 18, getLevelColor());
     DrawText(TextFormat("Time: %.1fs", gameTime), 250, 10, 18, WHITE);
     
     DrawText(TextFormat("Harpoons: %d", (int)projectiles.size()), 380, 10, 18, LIME);
@@ -412,7 +437,6 @@ void Game::updateFallingRocks(float deltaTime) {
         rock.update(deltaTime);
     }
     
-    // Remove landed rocks - they become part of terrain
     auto it = std::remove_if(fallingRocks.begin(), fallingRocks.end(),
         [](const FallingRock& rock) { 
             return rock.isLanded(); 
@@ -447,7 +471,9 @@ void Game::checkProjectileCollisions() {
                 audioManager->playHarpoonHit();
                 animationManager.addHarpoonImpact(projPos);
                 
-                int points = (monsterIt->getType() == Monster::GREEN_DRAGON) ? 200 : 100;
+                // Progressive scoring based on level
+                int basePoints = (monsterIt->getType() == Monster::GREEN_DRAGON) ? 200 : 100;
+                int points = basePoints + (level * 50);
                 addScore(points);
                 monstersKilled++;
                 
@@ -478,7 +504,7 @@ void Game::checkPowerUpCollisions() {
         if (it->getPosition() == playerPos && !it->isCollected()) {
             player.applyPowerUp(it->getType(), it->getDuration());
             it->collect();
-            addScore(50);
+            addScore(50 + (level * 25)); // Level-based power-up bonus
             
             std::cout << "Power-up collected!" << std::endl;
             it = powerUps.erase(it);
@@ -494,7 +520,6 @@ void Game::checkFallingRockCollisions() {
     for (auto& rock : fallingRocks) {
         Position rockPos = rock.getPosition();
         
-        // Check player collision with falling rocks
         if (rockPos == playerPos && !player.isInvulnerable()) {
             gameOver = true;
             playerWon = false;
@@ -502,11 +527,10 @@ void Game::checkFallingRockCollisions() {
             return;
         }
         
-        // Check monster collision with falling rocks
         for (auto monsterIt = monsters.begin(); monsterIt != monsters.end(); ) {
             if (monsterIt->getPosition() == rockPos) {
                 createExplosion(rockPos);
-                addScore(150);
+                addScore(150 + (level * 75)); // Level-based rock crush bonus
                 monsterIt = monsters.erase(monsterIt);
                 std::cout << "Monster crushed by falling rock!" << std::endl;
             } else {
@@ -520,7 +544,6 @@ void Game::checkForTriggeredRockFalls() {
     std::vector<Position> triggeredFalls = terrain.getTriggeredRockFalls();
     
     for (const auto& rockPos : triggeredFalls) {
-        // Check if rock is already falling to prevent duplicates
         bool alreadyFalling = false;
         for (const auto& rock : fallingRocks) {
             if (rock.getPosition() == rockPos) {
@@ -542,7 +565,8 @@ void Game::checkForRockFalls() {
 }
 
 void Game::spawnPowerUp() {
-    if (powerUps.size() >= 2) return;
+    int maxPowerUps = std::min(3, 1 + (level / 2)); // More power-ups in higher levels
+    if ((int)powerUps.size() >= maxPowerUps) return;
     
     Position spawnPos;
     int attempts = 0;
@@ -568,12 +592,24 @@ bool Game::allMonstersDestroyed() const {
 
 int Game::calculateLevelScore() const {
     int timeBonus = (int)(100.0f / (gameTime + 1.0f)) * 10;
-    return 500 + timeBonus;
+    int levelBonus = level * 200;
+    return 500 + timeBonus + levelBonus;
 }
 
 Color Game::getScoreColor() const {
-    if (score < 500) return WHITE;
-    else if (score < 1500) return YELLOW;
-    else if (score < 3000) return ORANGE;
+    if (score < 1000) return WHITE;
+    else if (score < 3000) return YELLOW;
+    else if (score < 6000) return ORANGE;
     else return GOLD;
+}
+
+Color Game::getLevelColor() const {
+    switch (level) {
+        case 1: return WHITE;
+        case 2: return GREEN;
+        case 3: return YELLOW;
+        case 4: return ORANGE;
+        case 5: return RED;
+        default: return PURPLE;
+    }
 }

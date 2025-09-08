@@ -23,10 +23,10 @@ private:
     Position playerStartPosition;
     std::vector<Position> monsterPositions;
     bool levelLoaded;
-    std::vector<Position> triggeredRockFalls;  // NEW: Track triggered rock falls
+    std::vector<Position> triggeredRockFalls;
     
 public:
-    TerrainGrid();
+    TerrainGrid(int levelNumber = 1);
     
     bool loadFromFile(const std::string& filename);
     
@@ -48,11 +48,11 @@ public:
     const std::vector<Position>& getMonsterPositions() const { return monsterPositions; }
     const std::vector<Position>& getInitialRockPositions() const { return initialRockPositions; }
     
-    // Rock management - AUTHENTIC DIG DUG STYLE
-    void triggerRockFall(const Position& rockPos);  // NEW: Trigger specific rock to fall
-    std::vector<Position> getTriggeredRockFalls();  // NEW: Get and clear triggered falls
+    // Rock management
+    void triggerRockFall(const Position& rockPos);
+    std::vector<Position> getTriggeredRockFalls();
     void removeRockAt(const Position& pos);
-    void checkAllRocksForFalling();  // Check all rocks for natural falling
+    void checkAllRocksForFalling();
     
 private:
     void createDefaultLevel();
