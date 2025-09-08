@@ -9,7 +9,7 @@ Game::Game() : showSplashScreen(true), splashTimer(0.0f),
     
     setupLevel();
     audioManager = AudioManager::getInstance();
-    std::cout << "Game initialized with IMPROVED ROCK FALLING system" << std::endl;
+    std::cout << "Game initialized with PERSISTENT ROCK FALLING system" << std::endl;
 }
 
 void Game::setupLevel() {
@@ -30,17 +30,12 @@ void Game::setupLevel() {
     fallingRocks.clear();
     
     const auto& rockPositions = terrain.getInitialRockPositions();
-    std::cout << "=== IMPROVED FALLING ROCKS SYSTEM ===" << std::endl;
+    std::cout << "=== PERSISTENT FALLING ROCKS READY ===" << std::endl;
     for (const auto& rockPos : rockPositions) {
-        std::cout << "Rock at (" << rockPos.x << ", " << rockPos.y << ") - ready for physics!" << std::endl;
+        std::cout << "Rock at (" << rockPos.x << ", " << rockPos.y << ") - will fall persistently when triggered!" << std::endl;
     }
-    std::cout << "=====================================" << std::endl;
+    std::cout << "==========================================" << std::endl;
     
-    // Check for rocks that should fall naturally (no support) - ONCE ONLY
-    terrain.checkAllRocksForFalling();
-    
-    // Process any rocks that were triggered to fall
-    checkForTriggeredRockFalls();
     std::cout << "Level setup complete: " << monsters.size() << " monsters spawned" << std::endl;
 }
 
@@ -195,8 +190,8 @@ void Game::draw() const {
 }
 
 void Game::drawSplashScreen() const {
-    const char* title = "DIG DUG - IMPROVED PHYSICS";
-    const char* subtitle = "Fixed rock collision system!";
+    const char* title = "DIG DUG - POLISHED UI";
+    const char* subtitle = "Clean interface ready for sprites!";
     
     DrawText(title, 400 - MeasureText(title, 40)/2, 180, 40, WHITE);
     DrawText(subtitle, 400 - MeasureText(subtitle, 18)/2, 230, 18, YELLOW);
@@ -209,11 +204,11 @@ void Game::drawSplashScreen() const {
     DrawText(controls2, 400 - MeasureText(controls2, 18)/2, 350, 18, GREEN);
     DrawText(controls3, 400 - MeasureText(controls3, 18)/2, 380, 18, BLUE);
     
-    const char* features = "Physics Improvements:";
-    const char* feat1 = "- Fixed collision detection gaps";
-    const char* feat2 = "- Eliminated timing race conditions";
-    const char* feat3 = "- Consistent rock physics";
-    const char* feat4 = "- Better state management";
+    const char* features = "Clean UI Features:";
+    const char* feat1 = "- Centered text for professional look";
+    const char* feat2 = "- Clean HUD without debug clutter";
+    const char* feat3 = "- Reduced console output noise";
+    const char* feat4 = "- Ready for sprite implementation!";
     
     DrawText(features, 400 - MeasureText(features, 16)/2, 420, 16, PURPLE);
     DrawText(feat1, 400 - MeasureText(feat1, 14)/2, 440, 14, WHITE);
@@ -412,7 +407,6 @@ void Game::updateFallingRocks(float deltaTime) {
         rock.update(deltaTime);
     }
     
-    // Remove landed rocks - they become part of terrain
     auto it = std::remove_if(fallingRocks.begin(), fallingRocks.end(),
         [](const FallingRock& rock) { 
             return rock.isLanded(); 
@@ -493,8 +487,8 @@ void Game::checkFallingRockCollisions() {
     
     for (auto& rock : fallingRocks) {
         Position rockPos = rock.getPosition();
+        std::cout << "Checking falling rock at (" << rockPos.x << ", " << rockPos.y << ")" << std::endl;
         
-        // Check player collision with falling rocks
         if (rockPos == playerPos && !player.isInvulnerable()) {
             gameOver = true;
             playerWon = false;
@@ -502,13 +496,16 @@ void Game::checkFallingRockCollisions() {
             return;
         }
         
-        // Check monster collision with falling rocks
         for (auto monsterIt = monsters.begin(); monsterIt != monsters.end(); ) {
-            if (monsterIt->getPosition() == rockPos) {
+            Position monsterPos = monsterIt->getPosition();
+            std::cout << "  Monster at (" << monsterPos.x << ", " << monsterPos.y << ")" << std::endl;
+            
+            if (monsterPos == rockPos) {
+                std::cout << "  *** COLLISION DETECTED! Rock and monster at same position ***" << std::endl;
                 createExplosion(rockPos);
                 addScore(150);
                 monsterIt = monsters.erase(monsterIt);
-                std::cout << "Monster crushed by falling rock!" << std::endl;
+                std::cout << "  Monster successfully removed!" << std::endl;
             } else {
                 ++monsterIt;
             }
@@ -520,7 +517,6 @@ void Game::checkForTriggeredRockFalls() {
     std::vector<Position> triggeredFalls = terrain.getTriggeredRockFalls();
     
     for (const auto& rockPos : triggeredFalls) {
-        // Check if rock is already falling to prevent duplicates
         bool alreadyFalling = false;
         for (const auto& rock : fallingRocks) {
             if (rock.getPosition() == rockPos) {
@@ -532,7 +528,7 @@ void Game::checkForTriggeredRockFalls() {
         if (!alreadyFalling) {
             terrain.removeRockAt(rockPos);
             fallingRocks.emplace_back(rockPos, &terrain);
-            std::cout << "*** ROCK TRIGGERED! *** Rock at (" << rockPos.x << ", " << rockPos.y << ") starts falling!" << std::endl;
+            std::cout << "*** ROCK FALL TRIGGERED! *** Rock at (" << rockPos.x << ", " << rockPos.y << ") will fall until it lands!" << std::endl;
         }
     }
 }

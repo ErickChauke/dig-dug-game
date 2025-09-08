@@ -4,12 +4,12 @@
 
 FallingRock::FallingRock() 
     : GameThing(Position(0, 0)), fallSpeed(30.0f), fallTimer(0.0f), 
-      fallInterval(0.5f), hasLanded(false), isStable(true), terrain(nullptr) {
+      fallInterval(1.0f), hasLanded(false), isStable(true), terrain(nullptr) {
 }
 
 FallingRock::FallingRock(const Position& startPos, TerrainGrid* terrainRef) 
     : GameThing(startPos), fallSpeed(30.0f), fallTimer(0.0f), 
-      fallInterval(0.5f), hasLanded(false), isStable(false), terrain(terrainRef) {
+      fallInterval(1.0f), hasLanded(false), isStable(false), terrain(terrainRef) {
     
     std::cout << "Falling rock created at (" << startPos.x << ", " << startPos.y << ")" << std::endl;
 }
@@ -43,7 +43,6 @@ void FallingRock::update(float deltaTime) {
             
             if (terrain) {
                 terrain->setBlock(location, BlockType::ROCK);
-                std::cout << "Rock landed at (" << location.x << ", " << location.y << ")" << std::endl;
             }
         }
     }
@@ -55,7 +54,6 @@ void FallingRock::draw() const {
     if (!hasLanded) {
         float fallProgress = fallTimer / fallInterval;
         
-        // Enhanced falling rock visual with better feedback
         DrawRectangle(pixelPos.x, pixelPos.y, 
                      Position::BLOCK_SIZE, Position::BLOCK_SIZE, YELLOW);
         
@@ -64,28 +62,33 @@ void FallingRock::draw() const {
         DrawRectangleLines(pixelPos.x - 2, pixelPos.y - 2, 
                           Position::BLOCK_SIZE + 4, Position::BLOCK_SIZE + 4, RED);
         
-        // Motion blur effect
-        for (int i = 1; i <= 3; i++) {
-            float alpha = 0.4f - (i * 0.1f);
-            DrawRectangle(pixelPos.x + 2, pixelPos.y - (i * 4), 
+        for (int i = 1; i <= 5; i++) {
+            float alpha = 0.6f - (i * 0.1f);
+            DrawRectangle(pixelPos.x + 2, pixelPos.y - (i * 3), 
                          Position::BLOCK_SIZE - 4, 2, 
                          ColorAlpha(ORANGE, alpha));
         }
         
-        // Fall progress bar
+        float timeRemaining = fallInterval - fallTimer;
+        const char* timerText = TextFormat("%.1f", timeRemaining);
+        DrawText(timerText, pixelPos.x - 8, pixelPos.y - 15, 10, WHITE);
+        
+        DrawText("FALLING!", pixelPos.x - 12, pixelPos.y + 12, 8, RED);
+        
         int barWidth = Position::BLOCK_SIZE;
         int progressWidth = (int)(barWidth * fallProgress);
         DrawRectangle(pixelPos.x, pixelPos.y - 5, barWidth, 3, DARKGRAY);
         DrawRectangle(pixelPos.x, pixelPos.y - 5, progressWidth, 3, RED);
         
     } else {
-        // Landed rock appearance
         DrawRectangle(pixelPos.x + 1, pixelPos.y + 1, 
                      Position::BLOCK_SIZE - 2, Position::BLOCK_SIZE - 2,
                      GRAY);
         
         DrawRectangleLines(pixelPos.x, pixelPos.y, 
                           Position::BLOCK_SIZE, Position::BLOCK_SIZE, DARKGRAY);
+        
+        DrawText("LANDED", pixelPos.x - 8, pixelPos.y + 12, 6, GREEN);
     }
 }
 
@@ -94,13 +97,11 @@ bool FallingRock::canFallTo(const Position& pos) const {
         return false;
     }
     
-    // Can't fall below world boundary
-    if (pos.y >= Position::WORLD_HEIGHT - 1) {
+    if (pos.y >= Position::WORLD_HEIGHT - 3) {
         return false;
     }
     
     if (terrain) {
-        // Check if destination is empty and not occupied by another rock
         return terrain->isBlockEmpty(pos);
     }
     
@@ -113,8 +114,7 @@ bool FallingRock::hasSupport() const {
     Position belowPos = location;
     belowPos.y++;
     
-    // Has support if there's something solid below or at world boundary
-    return !terrain->isBlockEmpty(belowPos) || !belowPos.isValid() || belowPos.y >= Position::WORLD_HEIGHT - 1;
+    return !terrain->isBlockEmpty(belowPos) || !belowPos.isValid() || belowPos.y >= Position::WORLD_HEIGHT - 3;
 }
 
 void FallingRock::checkStability() {
