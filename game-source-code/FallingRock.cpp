@@ -94,8 +94,9 @@ bool FallingRock::canFallTo(const Position& pos) const {
         return false;
     }
     
-    // Can't fall below world boundary
-    if (pos.y >= Position::WORLD_HEIGHT - 1) {
+    // FIXED: Can fall to the very bottom row (WORLD_HEIGHT - 1)
+    // Only stop if trying to go BEYOND the bottom
+    if (pos.y >= Position::WORLD_HEIGHT) {
         return false;
     }
     
@@ -113,8 +114,8 @@ bool FallingRock::hasSupport() const {
     Position belowPos = location;
     belowPos.y++;
     
-    // Has support if there's something solid below or at world boundary
-    return !terrain->isBlockEmpty(belowPos) || !belowPos.isValid() || belowPos.y >= Position::WORLD_HEIGHT - 1;
+    // Has support if there's something solid below OR at the very bottom of world
+    return !terrain->isBlockEmpty(belowPos) || !belowPos.isValid() || belowPos.y >= Position::WORLD_HEIGHT;
 }
 
 void FallingRock::checkStability() {

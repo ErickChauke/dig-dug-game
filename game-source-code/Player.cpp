@@ -4,9 +4,10 @@
 
 Player::Player(const Position& startPos) 
     : GameThing(startPos), facingDirection(RIGHT), movingDirection(NONE),
-      moveSpeed(50.0f), baseMoveSpeed(50.0f), isMoving(false), 
+      moveSpeed(5.0f), baseMoveSpeed(5.0f), isMoving(false), 
       shootCooldown(0.0f), baseShootCooldown(1.0f), 
-      harpoonRange(8), baseHarpoonRange(8), worldTerrain(nullptr) {
+      harpoonRange(8), baseHarpoonRange(8), worldTerrain(nullptr),
+      moveTimer(0.0f), moveInterval(0.15f) {  // NEW: 0.15s between moves
     
     // Initialize power-up effects
     powerUps.speedBoost = false;
@@ -24,16 +25,23 @@ void Player::setTerrain(TerrainGrid* terrain) {
 }
 
 void Player::handleInput() {
-    movingDirection = NONE;
-    
-    if (IsKeyDown(KEY_UP)) {
-        moveUp();
-    } else if (IsKeyDown(KEY_DOWN)) {
-        moveDown();
-    } else if (IsKeyDown(KEY_LEFT)) {
-        moveLeft();
-    } else if (IsKeyDown(KEY_RIGHT)) {
-        moveRight();
+    // Only process movement if enough time has passed
+    if (moveTimer <= 0.0f) {
+        movingDirection = NONE;
+        
+        if (IsKeyDown(KEY_UP)) {
+            moveUp();
+            moveTimer = moveInterval;
+        } else if (IsKeyDown(KEY_DOWN)) {
+            moveDown();
+            moveTimer = moveInterval;
+        } else if (IsKeyDown(KEY_LEFT)) {
+            moveLeft();
+            moveTimer = moveInterval;
+        } else if (IsKeyDown(KEY_RIGHT)) {
+            moveRight();
+            moveTimer = moveInterval;
+        }
     }
 }
 
@@ -42,7 +50,7 @@ void Player::applyPowerUp(PowerUp::PowerUpType type, float duration) {
         case PowerUp::SPEED_BOOST:
             powerUps.speedBoost = true;
             powerUps.speedBoostTimer = duration;
-            moveSpeed = baseMoveSpeed * 1.5f;
+            moveInterval = 0.08f; // Faster movement when boosted
             std::cout << "Speed boost activated!" << std::endl;
             break;
             
@@ -116,10 +124,20 @@ bool Player::isReloading() const {
 }
 
 void Player::update(float deltaTime) {
+    updateMovement(deltaTime); // NEW: Update movement timer first
     handleInput();
     updateShooting(deltaTime);
     updatePowerUps(deltaTime);
     updateFacingDirection();
+}
+
+void Player::updateMovement(float deltaTime) {
+    if (moveTimer > 0.0f) {
+        moveTimer -= deltaTime;
+        if (moveTimer < 0.0f) {
+            moveTimer = 0.0f;
+        }
+    }
 }
 
 void Player::draw() const {
@@ -249,7 +267,7 @@ void Player::updatePowerUps(float deltaTime) {
         powerUps.speedBoostTimer -= deltaTime;
         if (powerUps.speedBoostTimer <= 0.0f) {
             powerUps.speedBoost = false;
-            moveSpeed = baseMoveSpeed;
+            moveInterval = 0.15f; // Return to normal speed
             std::cout << "Speed boost expired" << std::endl;
         }
     }

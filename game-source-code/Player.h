@@ -26,6 +26,10 @@ private:
     int harpoonRange;
     int baseHarpoonRange;
     
+    // NEW: Movement timing control
+    float moveTimer;
+    float moveInterval;
+    
     // Power-up effects
     struct PowerUpEffects {
         bool speedBoost;
@@ -81,6 +85,7 @@ private:
     void updateFacingDirection();
     void updateShooting(float deltaTime);
     void updatePowerUps(float deltaTime);
+    void updateMovement(float deltaTime); // NEW
 };
 
 #endif // PLAYER_H
