@@ -3,24 +3,25 @@
 
 Monster::Monster(const Position& startPos, MonsterType monsterType) 
     : GameThing(startPos), type(monsterType), currentState(PATROLLING),
-      baseSpeed(30.0f), moveSpeed(baseSpeed), targetPosition(startPos), 
-      decisionTimer(0.0f), decisionInterval(1.0f), aggressionTimer(0.0f),
+      baseSpeed(0.30f), moveSpeed(baseSpeed), targetPosition(startPos), 
+      decisionTimer(0.0f), decisionInterval(0.30f), aggressionTimer(0.0f),
       detectionRange(10.0f), fireBreathCooldown(0.0f), canBreatheFire(false) {
     
-    // Set type-specific properties
+    // Set type-specific properties but keep same base speed as player
     switch (type) {
         case RED_MONSTER:
-            baseSpeed = 25.0f;
+            baseSpeed = 0.30f; // Same as player movement interval
             detectionRange = 8.0f;
             canBreatheFire = false;
             break;
         case GREEN_DRAGON:
-            baseSpeed = 20.0f;
+            baseSpeed = 0.30f; // Same as player movement interval
             detectionRange = 12.0f;
             canBreatheFire = true;
             break;
     }
     moveSpeed = baseSpeed;
+    decisionInterval = baseSpeed; // Move at same rate as player
 }
 
 void Monster::setTarget(const Position& target) {
@@ -144,17 +145,15 @@ void Monster::updateBehaviorState(const Position& playerPos) {
         case PATROLLING:
             if (distanceToPlayer <= detectionRange) {
                 currentState = CHASING;
-                moveSpeed = baseSpeed * 1.2f; // Slight speed boost when chasing
+                // Keep same speed - no speed changes for balanced gameplay
             }
             break;
             
         case CHASING:
             if (distanceToPlayer > detectionRange * 1.5f) {
                 currentState = PATROLLING;
-                moveSpeed = baseSpeed;
             } else if (distanceToPlayer <= 5.0f) {
                 currentState = AGGRESSIVE;
-                moveSpeed = baseSpeed * 1.5f; // Faster when aggressive
                 aggressionTimer = 5.0f; // Stay aggressive for 5 seconds
             }
             break;
@@ -163,7 +162,6 @@ void Monster::updateBehaviorState(const Position& playerPos) {
             aggressionTimer -= 0.1f;
             if (aggressionTimer <= 0.0f && distanceToPlayer > 8.0f) {
                 currentState = CHASING;
-                moveSpeed = baseSpeed * 1.2f;
             }
             break;
     }

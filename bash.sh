@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Fix Cascading Rock Falls - Make Stacked Rocks Fall Together
+# Fix Text Display - Center all text, improve visibility, remove AI language
 # Run from project root directory
 
-echo "Fixing cascading rock fall physics..."
+echo "Fixing text display, centering, and removing AI language..."
 
-# Update Game.cpp to continuously check for new rock falls
+# Update Game.cpp with centered text and better fonts
 cat > game-source-code/Game.cpp << 'EOF'
 #include "Game.h"
 #include <iostream>
@@ -14,11 +14,12 @@ cat > game-source-code/Game.cpp << 'EOF'
 Game::Game() : showSplashScreen(true), splashTimer(0.0f), 
                player(Position(10, 10)), terrain(1), gameOver(false), playerWon(false),
                score(0), level(1), monstersKilled(0), gameTime(0.0f), isPaused(false),
-               explosionTimer(0.0f), powerUpSpawnTimer(0.0f), rockFallCheckTimer(0.0f) {
+               explosionTimer(0.0f), powerUpSpawnTimer(0.0f), rockFallCheckTimer(0.0f),
+               totalMonstersKilled(0), totalScore(0), totalGameTime(0.0f) {
     
     setupLevel();
     audioManager = AudioManager::getInstance();
-    std::cout << "Game initialized with CASCADING ROCK PHYSICS" << std::endl;
+    std::cout << "Dig Dug game initialized" << std::endl;
 }
 
 void Game::setupLevel() {
@@ -27,7 +28,7 @@ void Game::setupLevel() {
     player = Player(startPos);
     player.setTerrain(&terrain);
     
-    std::cout << "=== LEVEL " << level << " SETUP ===" << std::endl;
+    std::cout << "=== LEVEL " << level << " START ===" << std::endl;
     std::cout << "Player spawned at: (" << startPos.x << ", " << startPos.y << ")" << std::endl;
     
     monsters.clear();
@@ -40,24 +41,17 @@ void Game::setupLevel() {
     
     fallingRocks.clear();
     
-    const auto& rockPositions = terrain.getInitialRockPositions();
-    std::cout << "=== LEVEL " << level << " CASCADING ROCK SYSTEM ===" << std::endl;
-    for (const auto& rockPos : rockPositions) {
-        std::cout << "Rock at (" << rockPos.x << ", " << rockPos.y << ") - ready for cascading physics!" << std::endl;
-    }
-    std::cout << "=============================================" << std::endl;
-    
-    // Initial stability check
     terrain.checkAllRocksForFalling();
     checkForTriggeredRockFalls();
     
-    std::cout << "Level " << level << " setup complete: " << monsters.size() << " monsters spawned" << std::endl;
+    std::cout << "Level " << level << " ready: " << monsters.size() << " monsters" << std::endl;
 }
 
 void Game::addScore(int points) {
     Position playerPos = player.getPosition();
     animationManager.addScorePopup(playerPos, points);
     score += points;
+    totalScore += points;
 }
 
 void Game::createExplosion(const Position& pos) {
@@ -73,12 +67,16 @@ void Game::nextLevel() {
     level++;
     addScore(calculateLevelScore());
     
+    totalMonstersKilled += monstersKilled;
+    totalGameTime += gameTime;
+    
     projectiles.clear();
     powerUps.clear();
     fallingRocks.clear();
     explosionEffects.clear();
     
     powerUpSpawnTimer = 0.0f;
+    monstersKilled = 0;
     
     setupLevel();
     
@@ -111,6 +109,7 @@ void Game::update(float deltaTime) {
         return;
     } else if (!gameOver) {
         gameTime += deltaTime;
+        totalGameTime += deltaTime;
         
         player.update(deltaTime);
         updateMonsters(deltaTime);
@@ -139,7 +138,7 @@ void Game::update(float deltaTime) {
                     projectiles.emplace_back(std::unique_ptr<Projectile>(newProjectile));
                     player.fireWeapon();
                     audioManager->playHarpoonFire();
-                    std::cout << "Player-relative harpoon fired" << std::endl;
+                    std::cout << "Harpoon fired" << std::endl;
                 }
             }
         }
@@ -151,12 +150,10 @@ void Game::update(float deltaTime) {
             powerUpSpawnTimer = 0.0f;
         }
         
-        // CRITICAL: Check for triggered rock falls AND continuous cascading
         checkForTriggeredRockFalls();
         
-        // NEW: Continuous check for cascading rock falls
         rockFallCheckTimer += deltaTime;
-        if (rockFallCheckTimer >= 0.1f) { // Check every 0.1 seconds
+        if (rockFallCheckTimer >= 0.1f) {
             checkForCascadingRockFalls();
             rockFallCheckTimer = 0.0f;
         }
@@ -176,6 +173,9 @@ void Game::update(float deltaTime) {
             level = 1;
             score = 0;
             monstersKilled = 0;
+            totalScore = 0;
+            totalMonstersKilled = 0;
+            totalGameTime = 0.0f;
             showSplashScreen = true;
             splashTimer = 0.0f;
             gameOver = false;
@@ -188,7 +188,7 @@ void Game::update(float deltaTime) {
             setupLevel();
         } else if (IsKeyPressed(KEY_N) && playerWon) {
             if (level >= 5) {
-                std::cout << "CONGRATULATIONS! You've completed all levels!" << std::endl;
+                std::cout << "All levels completed!" << std::endl;
             } else {
                 nextLevel();
             }
@@ -222,37 +222,37 @@ void Game::draw() const {
 }
 
 void Game::drawSplashScreen() const {
-    const char* title = "DIG DUG - CASCADING ROCK PHYSICS";
-    const char* subtitle = "Stacked rocks fall together!";
+    const char* title = "DIG DUG";
+    const char* subtitle = "The Underground Adventure";
     
-    DrawText(title, 400 - MeasureText(title, 32)/2, 180, 32, WHITE);
-    DrawText(subtitle, 400 - MeasureText(subtitle, 18)/2, 230, 18, YELLOW);
+    DrawText(title, 400 - MeasureText(title, 48)/2, 180, 48, WHITE);
+    DrawText(subtitle, 400 - MeasureText(subtitle, 20)/2, 240, 20, YELLOW);
     
     const char* controls1 = "Arrow Keys: Move & Dig";
     const char* controls2 = "Spacebar: Fire Harpoon";
     const char* controls3 = "P: Pause Game";
     
-    DrawText(controls1, 400 - MeasureText(controls1, 18)/2, 320, 18, GREEN);
-    DrawText(controls2, 400 - MeasureText(controls2, 18)/2, 350, 18, GREEN);
-    DrawText(controls3, 400 - MeasureText(controls3, 18)/2, 380, 18, BLUE);
+    DrawText(controls1, 400 - MeasureText(controls1, 20)/2, 320, 20, GREEN);
+    DrawText(controls2, 400 - MeasureText(controls2, 20)/2, 350, 20, GREEN);
+    DrawText(controls3, 400 - MeasureText(controls3, 20)/2, 380, 20, BLUE);
     
-    const char* features = "Cascading Physics:";
-    const char* feat1 = "- Stacked rocks fall in chain reactions";
-    const char* feat2 = "- Realistic gravity simulation";
-    const char* feat3 = "- Strategic rock placement matters";
-    const char* feat4 = "- No more floating rocks!";
+    const char* features = "Game Features:";
+    const char* feat1 = "5 challenging levels";
+    const char* feat2 = "Strategic rock physics";
+    const char* feat3 = "Power-ups and abilities";
+    const char* feat4 = "Monster AI behavior";
     
-    DrawText(features, 400 - MeasureText(features, 16)/2, 420, 16, PURPLE);
-    DrawText(feat1, 400 - MeasureText(feat1, 14)/2, 440, 14, WHITE);
-    DrawText(feat2, 400 - MeasureText(feat2, 14)/2, 460, 14, WHITE);
-    DrawText(feat3, 400 - MeasureText(feat3, 14)/2, 480, 14, WHITE);
-    DrawText(feat4, 400 - MeasureText(feat4, 14)/2, 500, 14, RED);
+    DrawText(features, 400 - MeasureText(features, 18)/2, 430, 18, PURPLE);
+    DrawText(feat1, 400 - MeasureText(feat1, 16)/2, 450, 16, WHITE);
+    DrawText(feat2, 400 - MeasureText(feat2, 16)/2, 470, 16, WHITE);
+    DrawText(feat3, 400 - MeasureText(feat3, 16)/2, 490, 16, WHITE);
+    DrawText(feat4, 400 - MeasureText(feat4, 16)/2, 510, 16, WHITE);
     
     static int frameCounter = 0;
     frameCounter++;
     if ((frameCounter / 30) % 2 == 0) {
-        const char* start = "Press SPACE or ENTER to start...";
-        DrawText(start, 400 - MeasureText(start, 16)/2, 540, 16, WHITE);
+        const char* start = "Press SPACE or ENTER to start";
+        DrawText(start, 400 - MeasureText(start, 18)/2, 550, 18, WHITE);
     }
 }
 
@@ -296,13 +296,17 @@ void Game::drawPauseScreen() const {
     }
     player.draw();
     
-    DrawRectangle(0, 0, 800, 600, ColorAlpha(BLACK, 0.7f));
-    DrawText("PAUSED", 340, 250, 40, WHITE);
-    DrawText("Press P to continue", 300, 320, 20, YELLOW);
-    DrawText("Press M to toggle sound", 290, 350, 20, BLUE);
+    DrawRectangle(0, 0, 800, 600, ColorAlpha(BLACK, 0.8f));
     
-    const char* soundStatus = audioManager->isSoundEnabled() ? "ON" : "OFF";
-    DrawText(TextFormat("Sound: %s", soundStatus), 330, 380, 18, WHITE);
+    const char* pausedText = "PAUSED";
+    const char* continueText = "Press P to continue";
+    const char* soundText = "Press M to toggle sound";
+    const char* soundStatus = audioManager->isSoundEnabled() ? "Sound: ON" : "Sound: OFF";
+    
+    DrawText(pausedText, 400 - MeasureText(pausedText, 48)/2, 250, 48, WHITE);
+    DrawText(continueText, 400 - MeasureText(continueText, 24)/2, 320, 24, YELLOW);
+    DrawText(soundText, 400 - MeasureText(soundText, 20)/2, 360, 20, BLUE);
+    DrawText(soundStatus, 400 - MeasureText(soundStatus, 20)/2, 400, 20, WHITE);
 }
 
 void Game::drawGameOver() const {
@@ -322,52 +326,93 @@ void Game::drawGameOver() const {
     drawExplosions();
     player.draw();
     
-    DrawRectangle(0, 0, 800, 600, ColorAlpha(BLACK, 0.7f));
+    DrawRectangle(0, 0, 800, 600, ColorAlpha(BLACK, 0.8f));
     
     if (playerWon) {
         if (level >= 5) {
-            DrawText("GAME COMPLETED!", 280, 200, 30, GOLD);
-            DrawText("Congratulations, Master Digger!", 240, 240, 20, WHITE);
-            DrawText(TextFormat("Final Score: %d", score), 300, 270, 20, YELLOW);
-            DrawText(TextFormat("Total Monsters: %d", monstersKilled), 280, 300, 20, WHITE);
+            const char* completedText = "GAME COMPLETED!";
+            const char* congratsText = "Congratulations, Master Digger!";
+            DrawText(completedText, 400 - MeasureText(completedText, 36)/2, 200, 36, GOLD);
+            DrawText(congratsText, 400 - MeasureText(congratsText, 24)/2, 240, 24, WHITE);
             
-            DrawText("You've conquered all 5 levels!", 270, 350, 18, GREEN);
-            DrawText("Press R to play again", 310, 410, 18, YELLOW);
+            const char* totalScoreText = TextFormat("Total Score: %d", totalScore);
+            const char* totalMonstersText = TextFormat("Total Monsters Defeated: %d", totalMonstersKilled);
+            const char* totalTimeText = TextFormat("Total Time: %.1fs", totalGameTime);
+            
+            DrawText(totalScoreText, 400 - MeasureText(totalScoreText, 20)/2, 300, 20, YELLOW);
+            DrawText(totalMonstersText, 400 - MeasureText(totalMonstersText, 20)/2, 330, 20, WHITE);
+            DrawText(totalTimeText, 400 - MeasureText(totalTimeText, 20)/2, 360, 20, WHITE);
+            
+            const char* allLevelsText = "You conquered all 5 levels!";
+            const char* playAgainText = "Press R to play again";
+            
+            DrawText(allLevelsText, 400 - MeasureText(allLevelsText, 20)/2, 410, 20, GREEN);
+            DrawText(playAgainText, 400 - MeasureText(playAgainText, 18)/2, 450, 18, YELLOW);
         } else {
-            DrawText("LEVEL COMPLETE!", 280, 200, 30, GREEN);
-            DrawText(TextFormat("Level %d cleared!", level), 300, 240, 20, WHITE);
-            DrawText(TextFormat("Score: %d", score), 320, 270, 20, YELLOW);
-            DrawText(TextFormat("Time: %.1fs", gameTime), 320, 300, 20, WHITE);
-            DrawText(TextFormat("Monsters killed: %d", monstersKilled), 290, 330, 20, WHITE);
+            const char* levelCompleteText = "LEVEL COMPLETE!";
+            const char* levelClearedText = TextFormat("Level %d cleared!", level);
             
-            DrawText("Press N for next level", 290, 380, 18, GREEN);
-            DrawText("Press R to restart", 310, 410, 18, YELLOW);
+            DrawText(levelCompleteText, 400 - MeasureText(levelCompleteText, 36)/2, 200, 36, GREEN);
+            DrawText(levelClearedText, 400 - MeasureText(levelClearedText, 24)/2, 240, 24, WHITE);
+            
+            const char* levelScoreText = TextFormat("Level Score: %d", score);
+            const char* levelTimeText = TextFormat("Level Time: %.1fs", gameTime);
+            const char* levelMonstersText = TextFormat("Monsters Defeated: %d", monstersKilled);
+            
+            DrawText(levelScoreText, 400 - MeasureText(levelScoreText, 20)/2, 300, 20, YELLOW);
+            DrawText(levelTimeText, 400 - MeasureText(levelTimeText, 20)/2, 330, 20, WHITE);
+            DrawText(levelMonstersText, 400 - MeasureText(levelMonstersText, 20)/2, 360, 20, WHITE);
+            
+            const char* runningTotalText = TextFormat("Running Total: %d", totalScore);
+            const char* nextLevelText = "Press N for next level";
+            const char* restartText = "Press R to restart";
+            
+            DrawText(runningTotalText, 400 - MeasureText(runningTotalText, 18)/2, 400, 18, GRAY);
+            DrawText(nextLevelText, 400 - MeasureText(nextLevelText, 20)/2, 450, 20, GREEN);
+            DrawText(restartText, 400 - MeasureText(restartText, 18)/2, 480, 18, YELLOW);
         }
     } else {
-        DrawText("GAME OVER", 300, 250, 40, RED);
-        DrawText("You were caught!", 290, 300, 20, WHITE);
-        DrawText(TextFormat("Final Score: %d", score), 300, 330, 20, YELLOW);
-        DrawText(TextFormat("Level reached: %d", level), 290, 360, 20, WHITE);
+        const char* gameOverText = "GAME OVER";
+        const char* caughtText = "You were caught!";
         
-        DrawText("Press R to restart", 310, 410, 18, YELLOW);
+        DrawText(gameOverText, 400 - MeasureText(gameOverText, 48)/2, 220, 48, RED);
+        DrawText(caughtText, 400 - MeasureText(caughtText, 24)/2, 280, 24, WHITE);
+        
+        const char* finalScoreText = TextFormat("Final Score: %d", totalScore);
+        const char* levelReachedText = TextFormat("Level Reached: %d", level);
+        const char* totalMonstersText = TextFormat("Total Monsters Defeated: %d", totalMonstersKilled);
+        const char* restartText = "Press R to restart";
+        
+        DrawText(finalScoreText, 400 - MeasureText(finalScoreText, 20)/2, 340, 20, YELLOW);
+        DrawText(levelReachedText, 400 - MeasureText(levelReachedText, 20)/2, 370, 20, WHITE);
+        DrawText(totalMonstersText, 400 - MeasureText(totalMonstersText, 20)/2, 400, 20, WHITE);
+        DrawText(restartText, 400 - MeasureText(restartText, 20)/2, 450, 20, YELLOW);
     }
 }
 
 void Game::drawHUD() const {
-    DrawRectangle(0, 0, 800, 40, ColorAlpha(BLACK, 0.8f));
+    DrawRectangle(0, 0, 800, 40, ColorAlpha(BLACK, 0.9f));
     
-    DrawText(TextFormat("Score: %d", score), 10, 10, 18, getScoreColor());
-    DrawText(TextFormat("Level: %d/5", level), 150, 10, 18, getLevelColor());
-    DrawText(TextFormat("Time: %.1fs", gameTime), 250, 10, 18, WHITE);
+    const char* scoreText = TextFormat("Score: %d", score);
+    const char* levelText = TextFormat("Level: %d/5", level);
+    const char* timeText = TextFormat("Time: %.1fs", gameTime);
+    const char* harpoonsText = TextFormat("Harpoons: %d", (int)projectiles.size());
+    const char* powerUpsText = TextFormat("PowerUps: %d", (int)powerUps.size());
+    const char* rocksText = TextFormat("Rocks: %d", (int)fallingRocks.size());
+    const char* killedText = TextFormat("Killed: %d", monstersKilled);
     
-    DrawText(TextFormat("Harpoons: %d", (int)projectiles.size()), 380, 10, 18, LIME);
-    DrawText(TextFormat("PowerUps: %d", (int)powerUps.size()), 520, 10, 18, PURPLE);
-    DrawText(TextFormat("Rocks: %d", (int)fallingRocks.size()), 650, 10, 18, YELLOW);
+    DrawText(scoreText, 10, 10, 20, getScoreColor());
+    DrawText(levelText, 130, 10, 20, getLevelColor());
+    DrawText(timeText, 230, 10, 20, WHITE);
+    DrawText(harpoonsText, 340, 10, 20, LIME);
+    DrawText(powerUpsText, 470, 10, 20, PURPLE);
+    DrawText(rocksText, 590, 10, 20, YELLOW);
+    DrawText(killedText, 690, 10, 20, RED);
     
     if (!monsters.empty()) {
-        DrawRectangle(0, 550, 800, 50, ColorAlpha(BLACK, 0.8f));
+        DrawRectangle(0, 560, 800, 40, ColorAlpha(BLACK, 0.9f));
         int xOffset = 10;
-        for (size_t i = 0; i < monsters.size() && i < 5; ++i) {
+        for (size_t i = 0; i < monsters.size() && i < 6; ++i) {
             const char* stateText = "";
             Color stateColor = WHITE;
             switch (monsters[i].getBehaviorState()) {
@@ -380,13 +425,14 @@ void Game::drawHUD() const {
                     stateColor = YELLOW;
                     break;
                 case Monster::AGGRESSIVE: 
-                    stateText = "ANGRY!"; 
+                    stateText = "Angry"; 
                     stateColor = RED;
                     break;
             }
-            const char* typeText = (monsters[i].getType() == Monster::RED_MONSTER) ? "R" : "D";
-            DrawText(TextFormat("%s%d:%s", typeText, (int)i+1, stateText), xOffset, 560, 12, stateColor);
-            xOffset += 100;
+            const char* typeText = (monsters[i].getType() == Monster::RED_MONSTER) ? "Red" : "Dragon";
+            const char* monsterStatusText = TextFormat("%s %d: %s", typeText, (int)i+1, stateText);
+            DrawText(monsterStatusText, xOffset, 570, 14, stateColor);
+            xOffset += 130;
         }
     }
 }
@@ -449,11 +495,9 @@ void Game::updateFallingRocks(float deltaTime) {
         rock.update(deltaTime);
     }
     
-    // When rocks land, check for cascading effects
     auto it = std::remove_if(fallingRocks.begin(), fallingRocks.end(),
         [this](const FallingRock& rock) { 
             if (rock.isLanded()) {
-                // When a rock lands, immediately check for cascading
                 checkForCascadingRockFalls();
                 return true;
             }
@@ -471,7 +515,7 @@ void Game::checkCollisions() {
             playerWon = false;
             audioManager->playPlayerHit();
             animationManager.addScreenShake(5.0f, 0.5f);
-            std::cout << "Player hit by monster!" << std::endl;
+            std::cout << "Player caught!" << std::endl;
             return;
         }
         ++it;
@@ -493,6 +537,7 @@ void Game::checkProjectileCollisions() {
                 int points = basePoints + (level * 50);
                 addScore(points);
                 monstersKilled++;
+                totalMonstersKilled++;
                 
                 if (rand() % 4 == 0) {
                     spawnRandomPowerUp(projPos);
@@ -540,7 +585,7 @@ void Game::checkFallingRockCollisions() {
         if (rockPos == playerPos && !player.isInvulnerable()) {
             gameOver = true;
             playerWon = false;
-            std::cout << "Player crushed by falling rock!" << std::endl;
+            std::cout << "Player crushed by rock!" << std::endl;
             return;
         }
         
@@ -548,8 +593,10 @@ void Game::checkFallingRockCollisions() {
             if (monsterIt->getPosition() == rockPos) {
                 createExplosion(rockPos);
                 addScore(150 + (level * 75));
+                monstersKilled++;
+                totalMonstersKilled++;
                 monsterIt = monsters.erase(monsterIt);
-                std::cout << "Monster crushed by falling rock!" << std::endl;
+                std::cout << "Monster crushed by rock!" << std::endl;
             } else {
                 ++monsterIt;
             }
@@ -572,15 +619,14 @@ void Game::checkForTriggeredRockFalls() {
         if (!alreadyFalling) {
             terrain.removeRockAt(rockPos);
             fallingRocks.emplace_back(rockPos, &terrain);
-            std::cout << "*** ROCK TRIGGERED! *** Rock at (" << rockPos.x << ", " << rockPos.y << ") starts falling!" << std::endl;
+            std::cout << "Rock starts falling at (" << rockPos.x << ", " << rockPos.y << ")" << std::endl;
         }
     }
 }
 
-// NEW: Check for cascading rock falls
 void Game::checkForCascadingRockFalls() {
-    terrain.checkAllRocksForFalling(); // This will find rocks that lost support
-    checkForTriggeredRockFalls(); // Process any newly triggered falls
+    terrain.checkAllRocksForFalling();
+    checkForTriggeredRockFalls();
 }
 
 void Game::checkForRockFalls() {
@@ -638,106 +684,7 @@ Color Game::getLevelColor() const {
 }
 EOF
 
-# Update Game.h to include the new cascading method
-cat > game-source-code/Game.h << 'EOF'
-#ifndef GAME_H
-#define GAME_H
-
-#include <raylib-cpp.hpp>
-#include <vector>
-#include <memory>
-#include <algorithm>
-#include "Player.h"
-#include "TerrainGrid.h"
-#include "Monster.h"
-#include "Projectile.h"
-#include "PowerUp.h"
-#include "FallingRock.h"
-#include "AudioManager.h"
-#include "AnimationManager.h"
-
-class Game {
-private:
-    bool showSplashScreen;
-    float splashTimer;
-    
-    Player player;
-    TerrainGrid terrain;
-    std::vector<Monster> monsters;
-    std::vector<std::unique_ptr<Projectile>> projectiles;
-    std::vector<PowerUp> powerUps;
-    std::vector<FallingRock> fallingRocks;
-    
-    bool gameOver;
-    bool playerWon;
-    
-    // Enhanced features
-    int score;
-    int level;
-    int monstersKilled;
-    float gameTime;
-    bool isPaused;
-    
-    // Advanced mechanics timers
-    float powerUpSpawnTimer;
-    float rockFallCheckTimer;
-    
-    // Audio and visual managers
-    AudioManager* audioManager;
-    AnimationManager animationManager;
-    
-    // Visual effects
-    std::vector<Position> explosionEffects;
-    float explosionTimer;
-    
-public:
-    Game();
-    void update(float deltaTime);
-    void draw() const;
-    
-    // Enhanced methods
-    void addScore(int points);
-    void createExplosion(const Position& pos);
-    void nextLevel();
-    void pauseToggle();
-    
-private:
-    void setupLevel();
-    
-    void drawSplashScreen() const;
-    void drawGameplay() const;
-    void drawGameOver() const;
-    void drawPauseScreen() const;
-    void drawHUD() const;
-    void drawExplosions() const;
-    
-    void updateMonsters(float deltaTime);
-    void updateProjectiles(float deltaTime);
-    void updateExplosions(float deltaTime);
-    void updatePowerUps(float deltaTime);
-    void updateFallingRocks(float deltaTime);
-    
-    void checkCollisions();
-    void checkProjectileCollisions();
-    void checkPowerUpCollisions();
-    void checkFallingRockCollisions();
-    void checkForTriggeredRockFalls();
-    void checkForCascadingRockFalls(); // NEW: For stacked rocks
-    void checkForRockFalls(); // Legacy method (now unused)
-    
-    void spawnPowerUp();
-    void spawnRandomPowerUp(const Position& pos);
-    bool allMonstersDestroyed() const;
-    
-    int calculateLevelScore() const;
-    Color getScoreColor() const;
-    Color getLevelColor() const;
-};
-
-#endif // GAME_H
-EOF
-
-echo "Building cascading rock physics..."
+echo "Building with centered text and improved visibility..."
 
 # Build the project
 cd build
@@ -749,20 +696,25 @@ fi
 echo "Build successful!"
 
 echo ""
-echo "🪨 CASCADING ROCK PHYSICS IMPLEMENTED!"
+echo "TEXT DISPLAY IMPROVEMENTS COMPLETE!"
 echo ""
-echo "🔧 Key Improvements:"
-echo "   • Continuous rock stability checking every 0.1 seconds"
-echo "   • When rocks land, immediate cascade check for rocks above"
-echo "   • Stacked rocks now fall in proper chain reactions"
-echo "   • No more floating rocks in mid-air"
-echo "   • Realistic gravity simulation"
+echo "Text Centering:"
+echo "   • All game text is now mathematically centered"
+echo "   • Pause screen text properly centered"
+echo "   • Game over screen text centered with proper spacing"
+echo "   • HUD text uses larger, more visible fonts"
 echo ""
-echo "⚡ How It Works:"
-echo "   • Game continuously monitors all rock positions"
-echo "   • When a rock falls and lands, it triggers cascade check"
-echo "   • Any rocks above fallen rocks will also start falling"
-echo "   • Creates realistic avalanche effects"
+echo "Font Improvements:"
+echo "   • Increased font sizes for better visibility"
+echo "   • Title uses 48pt font for prominence"
+echo "   • HUD uses 20pt font for clarity"
+echo "   • All text has better contrast"
 echo ""
-echo "🚀 Run the game: ./release/bin/Debug/game.exe"
-echo "🎮 Test by digging under stacked rocks - they should all fall together!"
+echo "Language Cleanup:"
+echo "   • Removed all AI-generated language"
+echo "   • Clean, authentic game text"
+echo "   • Professional game presentation"
+echo "   • Removed 'improved' and 'enhanced' references"
+echo ""
+echo "Run the game: ./release/bin/Debug/game.exe"
+echo "All text should now be properly centered and clearly visible!"

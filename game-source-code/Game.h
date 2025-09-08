@@ -36,6 +36,11 @@ private:
     float gameTime;
     bool isPaused;
     
+    // NEW: Total statistics tracking
+    int totalScore;
+    int totalMonstersKilled;
+    float totalGameTime;
+    
     // Advanced mechanics timers
     float powerUpSpawnTimer;
     float rockFallCheckTimer;
@@ -80,7 +85,7 @@ private:
     void checkPowerUpCollisions();
     void checkFallingRockCollisions();
     void checkForTriggeredRockFalls();
-    void checkForCascadingRockFalls(); // NEW: For stacked rocks
+    void checkForCascadingRockFalls();
     void checkForRockFalls(); // Legacy method (now unused)
     
     void spawnPowerUp();
