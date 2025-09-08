@@ -80,6 +80,7 @@ private:
     void checkPowerUpCollisions();
     void checkFallingRockCollisions();
     void checkForTriggeredRockFalls();
+    void checkForCascadingRockFalls(); // NEW: For stacked rocks
     void checkForRockFalls(); // Legacy method (now unused)
     
     void spawnPowerUp();
@@ -88,7 +89,7 @@ private:
     
     int calculateLevelScore() const;
     Color getScoreColor() const;
-    Color getLevelColor() const; // NEW: Level-based color
+    Color getLevelColor() const;
 };
 
 #endif // GAME_H

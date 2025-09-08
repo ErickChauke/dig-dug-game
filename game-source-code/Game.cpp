@@ -9,11 +9,11 @@ Game::Game() : showSplashScreen(true), splashTimer(0.0f),
     
     setupLevel();
     audioManager = AudioManager::getInstance();
-    std::cout << "Game initialized with MULTI-LEVEL SYSTEM" << std::endl;
+    std::cout << "Game initialized with CASCADING ROCK PHYSICS" << std::endl;
 }
 
 void Game::setupLevel() {
-    terrain = TerrainGrid(level);  // Load level-specific terrain
+    terrain = TerrainGrid(level);
     Position startPos = terrain.getPlayerStartPosition();
     player = Player(startPos);
     player.setTerrain(&terrain);
@@ -32,13 +32,13 @@ void Game::setupLevel() {
     fallingRocks.clear();
     
     const auto& rockPositions = terrain.getInitialRockPositions();
-    std::cout << "=== LEVEL " << level << " ROCK SYSTEM ===" << std::endl;
+    std::cout << "=== LEVEL " << level << " CASCADING ROCK SYSTEM ===" << std::endl;
     for (const auto& rockPos : rockPositions) {
-        std::cout << "Rock at (" << rockPos.x << ", " << rockPos.y << ") - ready for physics!" << std::endl;
+        std::cout << "Rock at (" << rockPos.x << ", " << rockPos.y << ") - ready for cascading physics!" << std::endl;
     }
-    std::cout << "============================" << std::endl;
+    std::cout << "=============================================" << std::endl;
     
-    // Check for rocks that should fall naturally
+    // Initial stability check
     terrain.checkAllRocksForFalling();
     checkForTriggeredRockFalls();
     
@@ -64,20 +64,18 @@ void Game::nextLevel() {
     level++;
     addScore(calculateLevelScore());
     
-    // Clear current level state
     projectiles.clear();
     powerUps.clear();
     fallingRocks.clear();
     explosionEffects.clear();
     
-    // Reset timers
     powerUpSpawnTimer = 0.0f;
     
     setupLevel();
     
     gameOver = false;
     playerWon = false;
-    gameTime = 0.0f; // Reset level timer
+    gameTime = 0.0f;
     
     audioManager->playLevelComplete();
     std::cout << "Advanced to level " << level << std::endl;
@@ -137,7 +135,6 @@ void Game::update(float deltaTime) {
             }
         }
         
-        // Progressive power-up spawning based on level
         float spawnInterval = std::max(15.0f, 35.0f - (level * 3.0f));
         powerUpSpawnTimer += deltaTime;
         if (powerUpSpawnTimer >= spawnInterval) {
@@ -145,7 +142,15 @@ void Game::update(float deltaTime) {
             powerUpSpawnTimer = 0.0f;
         }
         
+        // CRITICAL: Check for triggered rock falls AND continuous cascading
         checkForTriggeredRockFalls();
+        
+        // NEW: Continuous check for cascading rock falls
+        rockFallCheckTimer += deltaTime;
+        if (rockFallCheckTimer >= 0.1f) { // Check every 0.1 seconds
+            checkForCascadingRockFalls();
+            rockFallCheckTimer = 0.0f;
+        }
         
         checkCollisions();
         checkProjectileCollisions();
@@ -159,7 +164,6 @@ void Game::update(float deltaTime) {
         }
     } else {
         if (IsKeyPressed(KEY_R)) {
-            // Restart from level 1
             level = 1;
             score = 0;
             monstersKilled = 0;
@@ -175,7 +179,6 @@ void Game::update(float deltaTime) {
             setupLevel();
         } else if (IsKeyPressed(KEY_N) && playerWon) {
             if (level >= 5) {
-                // Game completed!
                 std::cout << "CONGRATULATIONS! You've completed all levels!" << std::endl;
             } else {
                 nextLevel();
@@ -210,10 +213,10 @@ void Game::draw() const {
 }
 
 void Game::drawSplashScreen() const {
-    const char* title = "DIG DUG - MULTI-LEVEL ADVENTURE";
-    const char* subtitle = "5 Challenging Levels Await!";
+    const char* title = "DIG DUG - CASCADING ROCK PHYSICS";
+    const char* subtitle = "Stacked rocks fall together!";
     
-    DrawText(title, 400 - MeasureText(title, 36)/2, 180, 36, WHITE);
+    DrawText(title, 400 - MeasureText(title, 32)/2, 180, 32, WHITE);
     DrawText(subtitle, 400 - MeasureText(subtitle, 18)/2, 230, 18, YELLOW);
     
     const char* controls1 = "Arrow Keys: Move & Dig";
@@ -224,11 +227,11 @@ void Game::drawSplashScreen() const {
     DrawText(controls2, 400 - MeasureText(controls2, 18)/2, 350, 18, GREEN);
     DrawText(controls3, 400 - MeasureText(controls3, 18)/2, 380, 18, BLUE);
     
-    const char* features = "Level Features:";
-    const char* feat1 = "Level 1-2: Learn the basics";
-    const char* feat2 = "Level 3-4: Complex challenges";
-    const char* feat3 = "Level 5: Ultimate test";
-    const char* feat4 = "Progressive difficulty & rewards!";
+    const char* features = "Cascading Physics:";
+    const char* feat1 = "- Stacked rocks fall in chain reactions";
+    const char* feat2 = "- Realistic gravity simulation";
+    const char* feat3 = "- Strategic rock placement matters";
+    const char* feat4 = "- No more floating rocks!";
     
     DrawText(features, 400 - MeasureText(features, 16)/2, 420, 16, PURPLE);
     DrawText(feat1, 400 - MeasureText(feat1, 14)/2, 440, 14, WHITE);
@@ -437,9 +440,15 @@ void Game::updateFallingRocks(float deltaTime) {
         rock.update(deltaTime);
     }
     
+    // When rocks land, check for cascading effects
     auto it = std::remove_if(fallingRocks.begin(), fallingRocks.end(),
-        [](const FallingRock& rock) { 
-            return rock.isLanded(); 
+        [this](const FallingRock& rock) { 
+            if (rock.isLanded()) {
+                // When a rock lands, immediately check for cascading
+                checkForCascadingRockFalls();
+                return true;
+            }
+            return false;
         });
     fallingRocks.erase(it, fallingRocks.end());
 }
@@ -471,7 +480,6 @@ void Game::checkProjectileCollisions() {
                 audioManager->playHarpoonHit();
                 animationManager.addHarpoonImpact(projPos);
                 
-                // Progressive scoring based on level
                 int basePoints = (monsterIt->getType() == Monster::GREEN_DRAGON) ? 200 : 100;
                 int points = basePoints + (level * 50);
                 addScore(points);
@@ -504,7 +512,7 @@ void Game::checkPowerUpCollisions() {
         if (it->getPosition() == playerPos && !it->isCollected()) {
             player.applyPowerUp(it->getType(), it->getDuration());
             it->collect();
-            addScore(50 + (level * 25)); // Level-based power-up bonus
+            addScore(50 + (level * 25));
             
             std::cout << "Power-up collected!" << std::endl;
             it = powerUps.erase(it);
@@ -530,7 +538,7 @@ void Game::checkFallingRockCollisions() {
         for (auto monsterIt = monsters.begin(); monsterIt != monsters.end(); ) {
             if (monsterIt->getPosition() == rockPos) {
                 createExplosion(rockPos);
-                addScore(150 + (level * 75)); // Level-based rock crush bonus
+                addScore(150 + (level * 75));
                 monsterIt = monsters.erase(monsterIt);
                 std::cout << "Monster crushed by falling rock!" << std::endl;
             } else {
@@ -560,12 +568,18 @@ void Game::checkForTriggeredRockFalls() {
     }
 }
 
+// NEW: Check for cascading rock falls
+void Game::checkForCascadingRockFalls() {
+    terrain.checkAllRocksForFalling(); // This will find rocks that lost support
+    checkForTriggeredRockFalls(); // Process any newly triggered falls
+}
+
 void Game::checkForRockFalls() {
     // Legacy method - no longer used
 }
 
 void Game::spawnPowerUp() {
-    int maxPowerUps = std::min(3, 1 + (level / 2)); // More power-ups in higher levels
+    int maxPowerUps = std::min(3, 1 + (level / 2));
     if ((int)powerUps.size() >= maxPowerUps) return;
     
     Position spawnPos;

@@ -1,318 +1,743 @@
 #!/bin/bash
 
-# Fix TerrainGrid Constructor Issues
+# Fix Cascading Rock Falls - Make Stacked Rocks Fall Together
 # Run from project root directory
 
-echo "Fixing TerrainGrid constructor syntax errors..."
+echo "Fixing cascading rock fall physics..."
 
-# Fix TerrainGrid.cpp with correct constructor syntax
-cat > game-source-code/TerrainGrid.cpp << 'EOF'
-#include "TerrainGrid.h"
-#include <fstream>
+# Update Game.cpp to continuously check for new rock falls
+cat > game-source-code/Game.cpp << 'EOF'
+#include "Game.h"
 #include <iostream>
+#include <cstdlib>
 
-TerrainGrid::TerrainGrid(int levelNumber) : levelLoaded(false) {
-    // Initialize all blocks as solid first
-    for (int x = 0; x < WORLD_WIDTH; x++) {
-        for (int y = 0; y < WORLD_HEIGHT; y++) {
-            blocks[x][y] = BlockType::SOLID;
-        }
-    }
+Game::Game() : showSplashScreen(true), splashTimer(0.0f), 
+               player(Position(10, 10)), terrain(1), gameOver(false), playerWon(false),
+               score(0), level(1), monstersKilled(0), gameTime(0.0f), isPaused(false),
+               explosionTimer(0.0f), powerUpSpawnTimer(0.0f), rockFallCheckTimer(0.0f) {
     
-    // Try to load the specific level file
-    std::string filename = "resources/level" + std::to_string(levelNumber) + ".txt";
-    if (!loadFromFile(filename)) {
-        std::cout << "Level " << levelNumber << " file not found, creating default level..." << std::endl;
-        createDefaultLevel();
-    }
-    
-    levelLoaded = true;
+    setupLevel();
+    audioManager = AudioManager::getInstance();
+    std::cout << "Game initialized with CASCADING ROCK PHYSICS" << std::endl;
 }
 
-bool TerrainGrid::loadFromFile(const std::string& filename) {
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        std::cout << "Could not open level file: " << filename << std::endl;
-        return false;
+void Game::setupLevel() {
+    terrain = TerrainGrid(level);
+    Position startPos = terrain.getPlayerStartPosition();
+    player = Player(startPos);
+    player.setTerrain(&terrain);
+    
+    std::cout << "=== LEVEL " << level << " SETUP ===" << std::endl;
+    std::cout << "Player spawned at: (" << startPos.x << ", " << startPos.y << ")" << std::endl;
+    
+    monsters.clear();
+    const auto& monsterPositions = terrain.getMonsterPositions();
+    for (size_t i = 0; i < monsterPositions.size(); i++) {
+        Monster::MonsterType type = (i % 3 == 0) ? Monster::GREEN_DRAGON : Monster::RED_MONSTER;
+        monsters.emplace_back(monsterPositions[i], type);
+        std::cout << "Monster spawned at: (" << monsterPositions[i].x << ", " << monsterPositions[i].y << ")" << std::endl;
     }
     
-    std::string line;
-    int y = 0;
+    fallingRocks.clear();
     
-    // Clear existing data
-    initialRockPositions.clear();
-    monsterPositions.clear();
-    playerStartPosition = Position(17, 3); // Default position
+    const auto& rockPositions = terrain.getInitialRockPositions();
+    std::cout << "=== LEVEL " << level << " CASCADING ROCK SYSTEM ===" << std::endl;
+    for (const auto& rockPos : rockPositions) {
+        std::cout << "Rock at (" << rockPos.x << ", " << rockPos.y << ") - ready for cascading physics!" << std::endl;
+    }
+    std::cout << "=============================================" << std::endl;
     
-    std::cout << "Loading level from: " << filename << std::endl;
+    // Initial stability check
+    terrain.checkAllRocksForFalling();
+    checkForTriggeredRockFalls();
     
-    while (std::getline(file, line) && y < WORLD_HEIGHT) {
-        // Skip comment lines and empty lines
-        if (line.empty() || line[0] == '#') {
-            continue;
-        }
+    std::cout << "Level " << level << " setup complete: " << monsters.size() << " monsters spawned" << std::endl;
+}
+
+void Game::addScore(int points) {
+    Position playerPos = player.getPosition();
+    animationManager.addScorePopup(playerPos, points);
+    score += points;
+}
+
+void Game::createExplosion(const Position& pos) {
+    explosionEffects.push_back(pos);
+    explosionTimer = 1.0f;
+    
+    animationManager.addExplosion(pos);
+    animationManager.addScreenShake(3.0f, 0.3f);
+    audioManager->playMonsterDestroy();
+}
+
+void Game::nextLevel() {
+    level++;
+    addScore(calculateLevelScore());
+    
+    projectiles.clear();
+    powerUps.clear();
+    fallingRocks.clear();
+    explosionEffects.clear();
+    
+    powerUpSpawnTimer = 0.0f;
+    
+    setupLevel();
+    
+    gameOver = false;
+    playerWon = false;
+    gameTime = 0.0f;
+    
+    audioManager->playLevelComplete();
+    std::cout << "Advanced to level " << level << std::endl;
+}
+
+void Game::pauseToggle() {
+    isPaused = !isPaused;
+}
+
+void Game::update(float deltaTime) {
+    animationManager.update(deltaTime);
+    
+    if (showSplashScreen) {
+        splashTimer += deltaTime;
         
-        // Ensure line is long enough
-        if (line.length() < WORLD_WIDTH) {
-            line.resize(WORLD_WIDTH, 'W'); // Pad with walls
+        if (splashTimer > 10.0f || IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER)) {
+            showSplashScreen = false;
         }
+    } else if (IsKeyPressed(KEY_P)) {
+        pauseToggle();
+    } else if (IsKeyPressed(KEY_M) && isPaused) {
+        audioManager->toggleSound();
+    } else if (isPaused) {
+        return;
+    } else if (!gameOver) {
+        gameTime += deltaTime;
         
-        for (int x = 0; x < WORLD_WIDTH && x < (int)line.length(); x++) {
-            char c = line[x];
-            Position pos(x, y);
-            
-            switch (c) {
-                case 'W':
-                    blocks[x][y] = BlockType::SOLID;
-                    break;
-                case '.':
-                    blocks[x][y] = BlockType::EMPTY;
-                    break;
-                case 'R':
-                    blocks[x][y] = BlockType::ROCK;
-                    initialRockPositions.push_back(pos);
-                    std::cout << "ROCK LOADED at (" << pos.x << ", " << pos.y << ")" << std::endl;
-                    break;
-                case 'P':
-                    blocks[x][y] = BlockType::EMPTY;
-                    playerStartPosition = pos;
-                    std::cout << "Player start position: (" << pos.x << ", " << pos.y << ")" << std::endl;
-                    break;
-                case 'M':
-                    blocks[x][y] = BlockType::EMPTY;
-                    monsterPositions.push_back(pos);
-                    std::cout << "Monster position: (" << pos.x << ", " << pos.y << ")" << std::endl;
-                    break;
-                case 'D':
-                    blocks[x][y] = BlockType::EMPTY;
-                    monsterPositions.push_back(pos);
-                    std::cout << "Dragon position: (" << pos.x << ", " << pos.y << ")" << std::endl;
-                    break;
-                default:
-                    blocks[x][y] = BlockType::SOLID;
-                    break;
-            }
-        }
-        y++;
-    }
-    
-    file.close();
-    
-    // Validate level data
-    if (!validateLevelData()) {
-        std::cout << "Level validation failed, using default level" << std::endl;
-        return false;
-    }
-    
-    std::cout << "Level loaded successfully:" << std::endl;
-    std::cout << "- Rocks: " << initialRockPositions.size() << std::endl;
-    std::cout << "- Monsters: " << monsterPositions.size() << std::endl;
-    std::cout << "- Player start: (" << playerStartPosition.x << ", " << playerStartPosition.y << ")" << std::endl;
-    
-    return true;
-}
-
-void TerrainGrid::triggerRockFall(const Position& rockPos) {
-    if (isBlockRock(rockPos)) {
-        // Check if this rock is already triggered to prevent duplicates
-        for (const auto& triggered : triggeredRockFalls) {
-            if (triggered == rockPos) {
-                return; // Already triggered
-            }
-        }
+        player.update(deltaTime);
+        updateMonsters(deltaTime);
+        updateProjectiles(deltaTime);
+        updateExplosions(deltaTime);
+        updatePowerUps(deltaTime);
+        updateFallingRocks(deltaTime);
         
-        triggeredRockFalls.push_back(rockPos);
-        std::cout << "Rock fall triggered at (" << rockPos.x << ", " << rockPos.y << ")" << std::endl;
-    }
-}
-
-std::vector<Position> TerrainGrid::getTriggeredRockFalls() {
-    std::vector<Position> result = triggeredRockFalls;
-    triggeredRockFalls.clear();  // Clear after returning
-    return result;
-}
-
-bool TerrainGrid::isBlockSolid(const Position& pos) const {
-    if (!isValidPosition(pos)) {
-        return true;
-    }
-    return blocks[pos.x][pos.y] == BlockType::SOLID;
-}
-
-bool TerrainGrid::isBlockRock(const Position& pos) const {
-    if (!isValidPosition(pos)) {
-        return false;
-    }
-    return blocks[pos.x][pos.y] == BlockType::ROCK;
-}
-
-bool TerrainGrid::isBlockEmpty(const Position& pos) const {
-    if (!isValidPosition(pos)) {
-        return false;
-    }
-    return blocks[pos.x][pos.y] == BlockType::EMPTY;
-}
-
-BlockType TerrainGrid::getBlockType(const Position& pos) const {
-    if (!isValidPosition(pos)) {
-        return BlockType::SOLID;
-    }
-    return blocks[pos.x][pos.y];
-}
-
-void TerrainGrid::digTunnelAt(const Position& pos) {
-    if (isValidPosition(pos)) {
-        blocks[pos.x][pos.y] = BlockType::EMPTY;
-    }
-}
-
-void TerrainGrid::setBlock(const Position& pos, BlockType type) {
-    if (isValidPosition(pos)) {
-        blocks[pos.x][pos.y] = type;
-    }
-}
-
-bool TerrainGrid::isValidPosition(const Position& pos) const {
-    return pos.x >= 0 && pos.x < WORLD_WIDTH && 
-           pos.y >= 0 && pos.y < WORLD_HEIGHT;
-}
-
-void TerrainGrid::removeRockAt(const Position& pos) {
-    if (isValidPosition(pos) && isBlockRock(pos)) {
-        setBlock(pos, BlockType::EMPTY);
-    }
-}
-
-void TerrainGrid::draw() const {
-    for (int x = 0; x < WORLD_WIDTH; x++) {
-        for (int y = 0; y < WORLD_HEIGHT; y++) {
-            Position worldPos(x, y);
-            Position pixelPos = worldPos.toPixels();
-            raylib::Color blockColor = getBlockColor(worldPos);
-            
-            DrawRectangle(pixelPos.x, pixelPos.y,
-                         Position::BLOCK_SIZE, Position::BLOCK_SIZE,
-                         blockColor);
-        }
-    }
-}
-
-void TerrainGrid::createDefaultLevel() {
-    std::cout << "Creating default level with improved physics..." << std::endl;
-    
-    // Initialize ground level - sky above row 3
-    for (int x = 0; x < WORLD_WIDTH; x++) {
-        for (int y = 0; y < 3; y++) {
-            blocks[x][y] = BlockType::EMPTY;
-        }
-    }
-    
-    // Ground level (row 3 and below are solid earth)
-    for (int x = 0; x < WORLD_WIDTH; x++) {
-        for (int y = 3; y < WORLD_HEIGHT; y++) {
-            blocks[x][y] = BlockType::SOLID;
-        }
-    }
-    
-    // Create narrow vertical tunnel from surface
-    for (int y = 3; y <= 14; y++) {
-        blocks[20][y] = BlockType::EMPTY;
-    }
-    
-    // Create horizontal tunnels
-    for (int x = 10; x < 30; x++) {
-        blocks[x][15] = BlockType::EMPTY; // Upper tunnel
-        blocks[x][25] = BlockType::EMPTY; // Lower tunnel
-    }
-    
-    // Connect vertical to horizontal tunnels
-    for (int y = 15; y <= 25; y++) {
-        blocks[20][y] = BlockType::EMPTY;
-    }
-    
-    // Set player start position
-    playerStartPosition = Position(20, 3);
-    
-    // Add monsters
-    monsterPositions.clear();
-    monsterPositions.push_back(Position(25, 15));
-    monsterPositions.push_back(Position(15, 25));
-    
-    // Add strategic rocks
-    initialRockPositions.clear();
-    initialRockPositions.push_back(Position(15, 14));
-    initialRockPositions.push_back(Position(25, 14));
-    initialRockPositions.push_back(Position(15, 24));
-    initialRockPositions.push_back(Position(25, 24));
-    initialRockPositions.push_back(Position(20, 7));
-    
-    // Place rocks in terrain
-    for (const auto& rockPos : initialRockPositions) {
-        if (rockPos.isValid()) {
-            blocks[rockPos.x][rockPos.y] = BlockType::ROCK;
-        }
-    }
-}
-
-void TerrainGrid::initializeGroundLevel() {
-    // This method is no longer used
-}
-
-bool TerrainGrid::validateLevelData() const {
-    if (!playerStartPosition.isValid()) {
-        std::cout << "Invalid player start position" << std::endl;
-        return false;
-    }
-    
-    if (monsterPositions.empty()) {
-        std::cout << "No monsters found in level" << std::endl;
-        return false;
-    }
-    
-    for (const auto& pos : monsterPositions) {
-        if (!pos.isValid()) {
-            std::cout << "Invalid monster position: (" << pos.x << ", " << pos.y << ")" << std::endl;
-            return false;
-        }
-    }
-    
-    return true;
-}
-
-void TerrainGrid::checkAllRocksForFalling() {
-    std::cout << "Checking initial rock stability..." << std::endl;
-    
-    for (int x = 0; x < WORLD_WIDTH; x++) {
-        for (int y = 0; y < WORLD_HEIGHT; y++) {
-            Position rockPos(x, y);
-            if (isBlockRock(rockPos)) {
-                Position belowPos = rockPos;
-                belowPos.y++;
+        if (IsKeyPressed(KEY_SPACE)) {
+            if (!player.isReloading()) {
+                int playerFacing = static_cast<int>(player.getFacingDirection());
+                Projectile::Direction projDir;
                 
-                if (isValidPosition(belowPos) && isBlockEmpty(belowPos)) {
-                    std::cout << "Unstable rock at (" << x << ", " << y << ") - triggering fall!" << std::endl;
-                    triggerRockFall(rockPos);
+                switch (playerFacing) {
+                    case 1: projDir = Projectile::UP; break;
+                    case 2: projDir = Projectile::DOWN; break;
+                    case 3: projDir = Projectile::LEFT; break;
+                    case 4: projDir = Projectile::RIGHT; break;
+                    default: projDir = Projectile::RIGHT; break;
+                }
+                
+                int range = player.getCurrentHarpoonRange();
+                Projectile* newProjectile = new Projectile(&player, projDir, range);
+                
+                if (newProjectile) {
+                    projectiles.emplace_back(std::unique_ptr<Projectile>(newProjectile));
+                    player.fireWeapon();
+                    audioManager->playHarpoonFire();
+                    std::cout << "Player-relative harpoon fired" << std::endl;
                 }
             }
         }
+        
+        float spawnInterval = std::max(15.0f, 35.0f - (level * 3.0f));
+        powerUpSpawnTimer += deltaTime;
+        if (powerUpSpawnTimer >= spawnInterval) {
+            spawnPowerUp();
+            powerUpSpawnTimer = 0.0f;
+        }
+        
+        // CRITICAL: Check for triggered rock falls AND continuous cascading
+        checkForTriggeredRockFalls();
+        
+        // NEW: Continuous check for cascading rock falls
+        rockFallCheckTimer += deltaTime;
+        if (rockFallCheckTimer >= 0.1f) { // Check every 0.1 seconds
+            checkForCascadingRockFalls();
+            rockFallCheckTimer = 0.0f;
+        }
+        
+        checkCollisions();
+        checkProjectileCollisions();
+        checkPowerUpCollisions();
+        checkFallingRockCollisions();
+        
+        if (allMonstersDestroyed()) {
+            gameOver = true;
+            playerWon = true;
+            addScore(calculateLevelScore());
+        }
+    } else {
+        if (IsKeyPressed(KEY_R)) {
+            level = 1;
+            score = 0;
+            monstersKilled = 0;
+            showSplashScreen = true;
+            splashTimer = 0.0f;
+            gameOver = false;
+            playerWon = false;
+            gameTime = 0.0f;
+            projectiles.clear();
+            powerUps.clear();
+            fallingRocks.clear();
+            explosionEffects.clear();
+            setupLevel();
+        } else if (IsKeyPressed(KEY_N) && playerWon) {
+            if (level >= 5) {
+                std::cout << "CONGRATULATIONS! You've completed all levels!" << std::endl;
+            } else {
+                nextLevel();
+            }
+        }
     }
 }
 
-raylib::Color TerrainGrid::getBlockColor(const Position& pos) const {
-    switch (blocks[pos.x][pos.y]) {
-        case BlockType::SOLID:
-            return raylib::Color(139, 69, 19, 255); // Brown
-        case BlockType::EMPTY:
-            return raylib::Color(0, 0, 0, 255); // Black
-        case BlockType::ROCK:
-            return raylib::Color(128, 128, 128, 255); // Gray
-        default:
-            return raylib::Color(0, 0, 0, 255); // Black
+void Game::draw() const {
+    Position shakeOffset = animationManager.getShakeOffset();
+    
+    if (showSplashScreen) {
+        drawSplashScreen();
+    } else if (isPaused) {
+        drawPauseScreen();
+    } else if (gameOver) {
+        drawGameOver();
+    } else {
+        if (shakeOffset.x != 0 || shakeOffset.y != 0) {
+            rlPushMatrix();
+            rlTranslatef(shakeOffset.x, shakeOffset.y, 0);
+        }
+        
+        drawGameplay();
+        
+        if (shakeOffset.x != 0 || shakeOffset.y != 0) {
+            rlPopMatrix();
+        }
+    }
+    
+    animationManager.drawAnimations();
+}
+
+void Game::drawSplashScreen() const {
+    const char* title = "DIG DUG - CASCADING ROCK PHYSICS";
+    const char* subtitle = "Stacked rocks fall together!";
+    
+    DrawText(title, 400 - MeasureText(title, 32)/2, 180, 32, WHITE);
+    DrawText(subtitle, 400 - MeasureText(subtitle, 18)/2, 230, 18, YELLOW);
+    
+    const char* controls1 = "Arrow Keys: Move & Dig";
+    const char* controls2 = "Spacebar: Fire Harpoon";
+    const char* controls3 = "P: Pause Game";
+    
+    DrawText(controls1, 400 - MeasureText(controls1, 18)/2, 320, 18, GREEN);
+    DrawText(controls2, 400 - MeasureText(controls2, 18)/2, 350, 18, GREEN);
+    DrawText(controls3, 400 - MeasureText(controls3, 18)/2, 380, 18, BLUE);
+    
+    const char* features = "Cascading Physics:";
+    const char* feat1 = "- Stacked rocks fall in chain reactions";
+    const char* feat2 = "- Realistic gravity simulation";
+    const char* feat3 = "- Strategic rock placement matters";
+    const char* feat4 = "- No more floating rocks!";
+    
+    DrawText(features, 400 - MeasureText(features, 16)/2, 420, 16, PURPLE);
+    DrawText(feat1, 400 - MeasureText(feat1, 14)/2, 440, 14, WHITE);
+    DrawText(feat2, 400 - MeasureText(feat2, 14)/2, 460, 14, WHITE);
+    DrawText(feat3, 400 - MeasureText(feat3, 14)/2, 480, 14, WHITE);
+    DrawText(feat4, 400 - MeasureText(feat4, 14)/2, 500, 14, RED);
+    
+    static int frameCounter = 0;
+    frameCounter++;
+    if ((frameCounter / 30) % 2 == 0) {
+        const char* start = "Press SPACE or ENTER to start...";
+        DrawText(start, 400 - MeasureText(start, 16)/2, 540, 16, WHITE);
+    }
+}
+
+void Game::drawGameplay() const {
+    terrain.draw();
+    
+    for (const auto& rock : fallingRocks) {
+        rock.draw();
+    }
+    
+    for (const auto& powerUp : powerUps) {
+        powerUp.draw();
+    }
+    
+    for (const auto& monster : monsters) {
+        monster.draw();
+    }
+    
+    for (const auto& projectile : projectiles) {
+        projectile->draw();
+    }
+    
+    drawExplosions();
+    player.draw();
+    drawHUD();
+}
+
+void Game::drawPauseScreen() const {
+    terrain.draw();
+    for (const auto& rock : fallingRocks) {
+        rock.draw();
+    }
+    for (const auto& powerUp : powerUps) {
+        powerUp.draw();
+    }
+    for (const auto& monster : monsters) {
+        monster.draw();
+    }
+    for (const auto& projectile : projectiles) {
+        projectile->draw();
+    }
+    player.draw();
+    
+    DrawRectangle(0, 0, 800, 600, ColorAlpha(BLACK, 0.7f));
+    DrawText("PAUSED", 340, 250, 40, WHITE);
+    DrawText("Press P to continue", 300, 320, 20, YELLOW);
+    DrawText("Press M to toggle sound", 290, 350, 20, BLUE);
+    
+    const char* soundStatus = audioManager->isSoundEnabled() ? "ON" : "OFF";
+    DrawText(TextFormat("Sound: %s", soundStatus), 330, 380, 18, WHITE);
+}
+
+void Game::drawGameOver() const {
+    terrain.draw();
+    for (const auto& rock : fallingRocks) {
+        rock.draw();
+    }
+    for (const auto& powerUp : powerUps) {
+        powerUp.draw();
+    }
+    for (const auto& monster : monsters) {
+        monster.draw();
+    }
+    for (const auto& projectile : projectiles) {
+        projectile->draw();
+    }
+    drawExplosions();
+    player.draw();
+    
+    DrawRectangle(0, 0, 800, 600, ColorAlpha(BLACK, 0.7f));
+    
+    if (playerWon) {
+        if (level >= 5) {
+            DrawText("GAME COMPLETED!", 280, 200, 30, GOLD);
+            DrawText("Congratulations, Master Digger!", 240, 240, 20, WHITE);
+            DrawText(TextFormat("Final Score: %d", score), 300, 270, 20, YELLOW);
+            DrawText(TextFormat("Total Monsters: %d", monstersKilled), 280, 300, 20, WHITE);
+            
+            DrawText("You've conquered all 5 levels!", 270, 350, 18, GREEN);
+            DrawText("Press R to play again", 310, 410, 18, YELLOW);
+        } else {
+            DrawText("LEVEL COMPLETE!", 280, 200, 30, GREEN);
+            DrawText(TextFormat("Level %d cleared!", level), 300, 240, 20, WHITE);
+            DrawText(TextFormat("Score: %d", score), 320, 270, 20, YELLOW);
+            DrawText(TextFormat("Time: %.1fs", gameTime), 320, 300, 20, WHITE);
+            DrawText(TextFormat("Monsters killed: %d", monstersKilled), 290, 330, 20, WHITE);
+            
+            DrawText("Press N for next level", 290, 380, 18, GREEN);
+            DrawText("Press R to restart", 310, 410, 18, YELLOW);
+        }
+    } else {
+        DrawText("GAME OVER", 300, 250, 40, RED);
+        DrawText("You were caught!", 290, 300, 20, WHITE);
+        DrawText(TextFormat("Final Score: %d", score), 300, 330, 20, YELLOW);
+        DrawText(TextFormat("Level reached: %d", level), 290, 360, 20, WHITE);
+        
+        DrawText("Press R to restart", 310, 410, 18, YELLOW);
+    }
+}
+
+void Game::drawHUD() const {
+    DrawRectangle(0, 0, 800, 40, ColorAlpha(BLACK, 0.8f));
+    
+    DrawText(TextFormat("Score: %d", score), 10, 10, 18, getScoreColor());
+    DrawText(TextFormat("Level: %d/5", level), 150, 10, 18, getLevelColor());
+    DrawText(TextFormat("Time: %.1fs", gameTime), 250, 10, 18, WHITE);
+    
+    DrawText(TextFormat("Harpoons: %d", (int)projectiles.size()), 380, 10, 18, LIME);
+    DrawText(TextFormat("PowerUps: %d", (int)powerUps.size()), 520, 10, 18, PURPLE);
+    DrawText(TextFormat("Rocks: %d", (int)fallingRocks.size()), 650, 10, 18, YELLOW);
+    
+    if (!monsters.empty()) {
+        DrawRectangle(0, 550, 800, 50, ColorAlpha(BLACK, 0.8f));
+        int xOffset = 10;
+        for (size_t i = 0; i < monsters.size() && i < 5; ++i) {
+            const char* stateText = "";
+            Color stateColor = WHITE;
+            switch (monsters[i].getBehaviorState()) {
+                case Monster::PATROLLING: 
+                    stateText = "Patrol"; 
+                    stateColor = GREEN;
+                    break;
+                case Monster::CHASING: 
+                    stateText = "Chase"; 
+                    stateColor = YELLOW;
+                    break;
+                case Monster::AGGRESSIVE: 
+                    stateText = "ANGRY!"; 
+                    stateColor = RED;
+                    break;
+            }
+            const char* typeText = (monsters[i].getType() == Monster::RED_MONSTER) ? "R" : "D";
+            DrawText(TextFormat("%s%d:%s", typeText, (int)i+1, stateText), xOffset, 560, 12, stateColor);
+            xOffset += 100;
+        }
+    }
+}
+
+void Game::drawExplosions() const {
+    for (const auto& pos : explosionEffects) {
+        Position pixelPos = pos.toPixels();
+        
+        static float animTimer = 0.0f;
+        animTimer += 0.1f;
+        
+        int radius = (int)(5 + 5 * sin(animTimer));
+        DrawCircle(pixelPos.x + Position::BLOCK_SIZE/2, 
+                  pixelPos.y + Position::BLOCK_SIZE/2, 
+                  radius, ColorAlpha(ORANGE, 0.8f));
+        DrawCircle(pixelPos.x + Position::BLOCK_SIZE/2, 
+                  pixelPos.y + Position::BLOCK_SIZE/2, 
+                  radius/2, ColorAlpha(YELLOW, 0.6f));
+    }
+}
+
+void Game::updateMonsters(float deltaTime) {
+    Position playerPos = player.getPosition();
+    
+    for (auto& monster : monsters) {
+        monster.setTarget(playerPos);
+        monster.update(deltaTime);
+    }
+}
+
+void Game::updateProjectiles(float deltaTime) {
+    for (auto& projectile : projectiles) {
+        projectile->update(deltaTime);
+    }
+    
+    auto it = std::remove_if(projectiles.begin(), projectiles.end(),
+        [](const std::unique_ptr<Projectile>& p) { 
+            return p->isFinished(); 
+        });
+    projectiles.erase(it, projectiles.end());
+}
+
+void Game::updateExplosions(float deltaTime) {
+    if (explosionTimer > 0.0f) {
+        explosionTimer -= deltaTime;
+        if (explosionTimer <= 0.0f) {
+            explosionEffects.clear();
+        }
+    }
+}
+
+void Game::updatePowerUps(float deltaTime) {
+    for (auto& powerUp : powerUps) {
+        powerUp.update(deltaTime);
+    }
+}
+
+void Game::updateFallingRocks(float deltaTime) {
+    for (auto& rock : fallingRocks) {
+        rock.update(deltaTime);
+    }
+    
+    // When rocks land, check for cascading effects
+    auto it = std::remove_if(fallingRocks.begin(), fallingRocks.end(),
+        [this](const FallingRock& rock) { 
+            if (rock.isLanded()) {
+                // When a rock lands, immediately check for cascading
+                checkForCascadingRockFalls();
+                return true;
+            }
+            return false;
+        });
+    fallingRocks.erase(it, fallingRocks.end());
+}
+
+void Game::checkCollisions() {
+    Position playerPos = player.getPosition();
+    
+    for (auto it = monsters.begin(); it != monsters.end(); ) {
+        if (it->getPosition() == playerPos && !player.isInvulnerable()) {
+            gameOver = true;
+            playerWon = false;
+            audioManager->playPlayerHit();
+            animationManager.addScreenShake(5.0f, 0.5f);
+            std::cout << "Player hit by monster!" << std::endl;
+            return;
+        }
+        ++it;
+    }
+}
+
+void Game::checkProjectileCollisions() {
+    for (auto projIt = projectiles.begin(); projIt != projectiles.end(); ) {
+        bool projectileHit = false;
+        Position projPos = (*projIt)->getPosition();
+        
+        for (auto monsterIt = monsters.begin(); monsterIt != monsters.end(); ) {
+            if (monsterIt->getPosition() == projPos) {
+                createExplosion(projPos);
+                audioManager->playHarpoonHit();
+                animationManager.addHarpoonImpact(projPos);
+                
+                int basePoints = (monsterIt->getType() == Monster::GREEN_DRAGON) ? 200 : 100;
+                int points = basePoints + (level * 50);
+                addScore(points);
+                monstersKilled++;
+                
+                if (rand() % 4 == 0) {
+                    spawnRandomPowerUp(projPos);
+                }
+                
+                monsterIt = monsters.erase(monsterIt);
+                projectileHit = true;
+                break;
+            } else {
+                ++monsterIt;
+            }
+        }
+        
+        if (projectileHit) {
+            projIt = projectiles.erase(projIt);
+        } else {
+            ++projIt;
+        }
+    }
+}
+
+void Game::checkPowerUpCollisions() {
+    Position playerPos = player.getPosition();
+    
+    for (auto it = powerUps.begin(); it != powerUps.end(); ) {
+        if (it->getPosition() == playerPos && !it->isCollected()) {
+            player.applyPowerUp(it->getType(), it->getDuration());
+            it->collect();
+            addScore(50 + (level * 25));
+            
+            std::cout << "Power-up collected!" << std::endl;
+            it = powerUps.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+void Game::checkFallingRockCollisions() {
+    Position playerPos = player.getPosition();
+    
+    for (auto& rock : fallingRocks) {
+        Position rockPos = rock.getPosition();
+        
+        if (rockPos == playerPos && !player.isInvulnerable()) {
+            gameOver = true;
+            playerWon = false;
+            std::cout << "Player crushed by falling rock!" << std::endl;
+            return;
+        }
+        
+        for (auto monsterIt = monsters.begin(); monsterIt != monsters.end(); ) {
+            if (monsterIt->getPosition() == rockPos) {
+                createExplosion(rockPos);
+                addScore(150 + (level * 75));
+                monsterIt = monsters.erase(monsterIt);
+                std::cout << "Monster crushed by falling rock!" << std::endl;
+            } else {
+                ++monsterIt;
+            }
+        }
+    }
+}
+
+void Game::checkForTriggeredRockFalls() {
+    std::vector<Position> triggeredFalls = terrain.getTriggeredRockFalls();
+    
+    for (const auto& rockPos : triggeredFalls) {
+        bool alreadyFalling = false;
+        for (const auto& rock : fallingRocks) {
+            if (rock.getPosition() == rockPos) {
+                alreadyFalling = true;
+                break;
+            }
+        }
+        
+        if (!alreadyFalling) {
+            terrain.removeRockAt(rockPos);
+            fallingRocks.emplace_back(rockPos, &terrain);
+            std::cout << "*** ROCK TRIGGERED! *** Rock at (" << rockPos.x << ", " << rockPos.y << ") starts falling!" << std::endl;
+        }
+    }
+}
+
+// NEW: Check for cascading rock falls
+void Game::checkForCascadingRockFalls() {
+    terrain.checkAllRocksForFalling(); // This will find rocks that lost support
+    checkForTriggeredRockFalls(); // Process any newly triggered falls
+}
+
+void Game::checkForRockFalls() {
+    // Legacy method - no longer used
+}
+
+void Game::spawnPowerUp() {
+    int maxPowerUps = std::min(3, 1 + (level / 2));
+    if ((int)powerUps.size() >= maxPowerUps) return;
+    
+    Position spawnPos;
+    int attempts = 0;
+    do {
+        spawnPos = Position(8 + rand() % 25, 8 + rand() % 15);
+        attempts++;
+    } while (!terrain.isBlockEmpty(spawnPos) && attempts < 20);
+    
+    if (attempts < 20) {
+        spawnRandomPowerUp(spawnPos);
+    }
+}
+
+void Game::spawnRandomPowerUp(const Position& pos) {
+    PowerUp::PowerUpType type = static_cast<PowerUp::PowerUpType>(rand() % 4);
+    powerUps.emplace_back(pos, type);
+    std::cout << "Power-up spawned at (" << pos.x << ", " << pos.y << ")" << std::endl;
+}
+
+bool Game::allMonstersDestroyed() const {
+    return monsters.empty();
+}
+
+int Game::calculateLevelScore() const {
+    int timeBonus = (int)(100.0f / (gameTime + 1.0f)) * 10;
+    int levelBonus = level * 200;
+    return 500 + timeBonus + levelBonus;
+}
+
+Color Game::getScoreColor() const {
+    if (score < 1000) return WHITE;
+    else if (score < 3000) return YELLOW;
+    else if (score < 6000) return ORANGE;
+    else return GOLD;
+}
+
+Color Game::getLevelColor() const {
+    switch (level) {
+        case 1: return WHITE;
+        case 2: return GREEN;
+        case 3: return YELLOW;
+        case 4: return ORANGE;
+        case 5: return RED;
+        default: return PURPLE;
     }
 }
 EOF
 
-echo "Building with fixed constructor..."
+# Update Game.h to include the new cascading method
+cat > game-source-code/Game.h << 'EOF'
+#ifndef GAME_H
+#define GAME_H
+
+#include <raylib-cpp.hpp>
+#include <vector>
+#include <memory>
+#include <algorithm>
+#include "Player.h"
+#include "TerrainGrid.h"
+#include "Monster.h"
+#include "Projectile.h"
+#include "PowerUp.h"
+#include "FallingRock.h"
+#include "AudioManager.h"
+#include "AnimationManager.h"
+
+class Game {
+private:
+    bool showSplashScreen;
+    float splashTimer;
+    
+    Player player;
+    TerrainGrid terrain;
+    std::vector<Monster> monsters;
+    std::vector<std::unique_ptr<Projectile>> projectiles;
+    std::vector<PowerUp> powerUps;
+    std::vector<FallingRock> fallingRocks;
+    
+    bool gameOver;
+    bool playerWon;
+    
+    // Enhanced features
+    int score;
+    int level;
+    int monstersKilled;
+    float gameTime;
+    bool isPaused;
+    
+    // Advanced mechanics timers
+    float powerUpSpawnTimer;
+    float rockFallCheckTimer;
+    
+    // Audio and visual managers
+    AudioManager* audioManager;
+    AnimationManager animationManager;
+    
+    // Visual effects
+    std::vector<Position> explosionEffects;
+    float explosionTimer;
+    
+public:
+    Game();
+    void update(float deltaTime);
+    void draw() const;
+    
+    // Enhanced methods
+    void addScore(int points);
+    void createExplosion(const Position& pos);
+    void nextLevel();
+    void pauseToggle();
+    
+private:
+    void setupLevel();
+    
+    void drawSplashScreen() const;
+    void drawGameplay() const;
+    void drawGameOver() const;
+    void drawPauseScreen() const;
+    void drawHUD() const;
+    void drawExplosions() const;
+    
+    void updateMonsters(float deltaTime);
+    void updateProjectiles(float deltaTime);
+    void updateExplosions(float deltaTime);
+    void updatePowerUps(float deltaTime);
+    void updateFallingRocks(float deltaTime);
+    
+    void checkCollisions();
+    void checkProjectileCollisions();
+    void checkPowerUpCollisions();
+    void checkFallingRockCollisions();
+    void checkForTriggeredRockFalls();
+    void checkForCascadingRockFalls(); // NEW: For stacked rocks
+    void checkForRockFalls(); // Legacy method (now unused)
+    
+    void spawnPowerUp();
+    void spawnRandomPowerUp(const Position& pos);
+    bool allMonstersDestroyed() const;
+    
+    int calculateLevelScore() const;
+    Color getScoreColor() const;
+    Color getLevelColor() const;
+};
+
+#endif // GAME_H
+EOF
+
+echo "Building cascading rock physics..."
 
 # Build the project
 cd build
@@ -324,10 +749,20 @@ fi
 echo "Build successful!"
 
 echo ""
-echo "TerrainGrid constructor syntax fixed!"
-echo "- Corrected constructor parameter list"
-echo "- Fixed member initialization syntax"
-echo "- Restored proper method calls within constructor"
+echo "🪨 CASCADING ROCK PHYSICS IMPLEMENTED!"
 echo ""
-echo "Run the game: ./release/bin/Debug/game.exe"
-echo "Multi-level system should now work correctly!"
+echo "🔧 Key Improvements:"
+echo "   • Continuous rock stability checking every 0.1 seconds"
+echo "   • When rocks land, immediate cascade check for rocks above"
+echo "   • Stacked rocks now fall in proper chain reactions"
+echo "   • No more floating rocks in mid-air"
+echo "   • Realistic gravity simulation"
+echo ""
+echo "⚡ How It Works:"
+echo "   • Game continuously monitors all rock positions"
+echo "   • When a rock falls and lands, it triggers cascade check"
+echo "   • Any rocks above fallen rocks will also start falling"
+echo "   • Creates realistic avalanche effects"
+echo ""
+echo "🚀 Run the game: ./release/bin/Debug/game.exe"
+echo "🎮 Test by digging under stacked rocks - they should all fall together!"
