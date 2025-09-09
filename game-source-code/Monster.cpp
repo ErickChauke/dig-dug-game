@@ -1,4 +1,5 @@
 #include "Monster.h"
+#include "SpriteManager.h"
 #include <cmath>
 
 Monster::Monster(const Position& startPos, MonsterType monsterType) 
@@ -93,30 +94,6 @@ void Monster::update(float deltaTime) {
     updateSpecialAbilities(deltaTime);
 }
 
-void Monster::draw() const {
-    Position pixelPos = location.toPixels();
-    raylib::Color color = getMonsterColor();
-    
-    // Draw monster with behavior state indication
-    DrawRectangle(pixelPos.x + 1, pixelPos.y + 1, 
-                 Position::BLOCK_SIZE - 2, Position::BLOCK_SIZE - 2,
-                 color);
-    
-    // Add visual indicators for behavior state
-    if (currentState == AGGRESSIVE) {
-        // Pulsing red outline for aggressive state
-        static float pulseTimer = 0.0f;
-        pulseTimer += 0.1f;
-        int alpha = (int)(128 + 127 * sin(pulseTimer));
-        DrawRectangleLines(pixelPos.x, pixelPos.y, Position::BLOCK_SIZE, Position::BLOCK_SIZE, 
-                          ColorAlpha(RED, alpha / 255.0f));
-    }
-    
-    // Show fire breath indicator for green dragons
-    if (canFireBreath()) {
-        DrawRectangle(pixelPos.x + 2, pixelPos.y - 2, 6, 2, ORANGE);
-    }
-}
 
 void Monster::updateAI(float deltaTime) {
     decisionTimer += deltaTime;
@@ -263,4 +240,84 @@ raylib::Color Monster::getMonsterColor() const {
 
 float Monster::getDistanceToPlayer(const Position& playerPos) const {
     return location.distanceTo(playerPos);
+}
+void Monster::draw() const {
+    Position pixelPos = location.toPixels();
+    
+    // Try to use sprites first
+    SpriteManager* spriteManager = SpriteManager::getInstance();
+    SpriteManager::SpriteType spriteType;
+    
+    // Determine base sprite type based on monster type and state
+    if (type == RED_MONSTER) {
+        switch (currentState) {
+            case AGGRESSIVE: spriteType = SpriteManager::RED_MONSTER_AGGRESSIVE; break;
+            case CHASING: spriteType = SpriteManager::RED_MONSTER_WALKING; break;
+            default: spriteType = SpriteManager::RED_MONSTER_IDLE; break;
+        }
+    } else { // GREEN_DRAGON
+        if (canFireBreath()) {
+            spriteType = SpriteManager::GREEN_DRAGON_BREATHING;
+        } else if (currentState == CHASING || currentState == AGGRESSIVE) {
+            spriteType = SpriteManager::GREEN_DRAGON_WALKING;
+        } else {
+            spriteType = SpriteManager::GREEN_DRAGON_IDLE;
+        }
+    }
+    
+    if (spriteManager->isSpriteLoaded(spriteType)) {
+        // Determine if monster should be flipped based on movement direction
+        bool shouldFlip = false;
+        
+        // Check if monster is moving toward target (left direction)
+        if (targetPosition.x < location.x) {
+            shouldFlip = true; // Monster is moving left, so flip the right-facing sprite
+        }
+        
+        // Draw sprite with or without flipping
+        if (shouldFlip) {
+            spriteManager->drawSpriteFlipped(spriteType, location);
+        } else {
+            spriteManager->drawSprite(spriteType, location);
+        }
+        
+        // Add visual indicators for behavior state
+        if (currentState == AGGRESSIVE) {
+            // Pulsing red outline for aggressive state
+            static float pulseTimer = 0.0f;
+            pulseTimer += 0.1f;
+            int alpha = (int)(128 + 127 * sin(pulseTimer));
+            DrawRectangleLines(pixelPos.x, pixelPos.y, Position::BLOCK_SIZE, Position::BLOCK_SIZE, 
+                              ColorAlpha(RED, alpha / 255.0f));
+        }
+        
+        // Show fire breath indicator for green dragons
+        if (canFireBreath()) {
+            DrawRectangle(pixelPos.x + 2, pixelPos.y - 2, 6, 2, ORANGE);
+        }
+        return; // Sprite drawing complete
+    }
+    
+    // Fallback to original rectangle drawing if sprites not available
+    raylib::Color color = getMonsterColor();
+    
+    // Draw monster with behavior state indication
+    DrawRectangle(pixelPos.x + 1, pixelPos.y + 1, 
+                 Position::BLOCK_SIZE - 2, Position::BLOCK_SIZE - 2,
+                 color);
+    
+    // Add visual indicators for behavior state
+    if (currentState == AGGRESSIVE) {
+        // Pulsing red outline for aggressive state
+        static float pulseTimer = 0.0f;
+        pulseTimer += 0.1f;
+        int alpha = (int)(128 + 127 * sin(pulseTimer));
+        DrawRectangleLines(pixelPos.x, pixelPos.y, Position::BLOCK_SIZE, Position::BLOCK_SIZE, 
+                          ColorAlpha(RED, alpha / 255.0f));
+    }
+    
+    // Show fire breath indicator for green dragons
+    if (canFireBreath()) {
+        DrawRectangle(pixelPos.x + 2, pixelPos.y - 2, 6, 2, ORANGE);
+    }
 }

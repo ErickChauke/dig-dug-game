@@ -1,16 +1,3 @@
-#!/bin/bash
-
-# Update sprite system to use 2x scaling for better visual size
-# Maintains all existing game logic while doubling sprite visual size
-# Run this from the dig-dug-game root directory
-
-set -e  # Exit on any error
-
-echo "=== Updating Sprite System for 2x Scale Rendering ==="
-echo "Converting to 40x40 visual size while maintaining 20x20 game logic..."
-
-# Update SpriteManager.h with default 2x scaling
-cat > game-source-code/SpriteManager.h << 'EOF'
 #ifndef SPRITEMANAGER_H
 #define SPRITEMANAGER_H
 
@@ -205,43 +192,3 @@ private:
 };
 
 #endif // SPRITEMANAGER_H
-EOF
-
-# Update all game classes to use the new simplified drawing methods
-echo "Updating Player.cpp to use automatic scaling..."
-sed -i 's/spriteManager->drawSprite(spriteType, location);/spriteManager->drawSprite(spriteType, location);/g' game-source-code/Player.cpp
-sed -i 's/spriteManager->drawSpriteFlipped(SpriteManager::PLAYER_WALKING_RIGHT, location);/spriteManager->drawSpriteFlipped(SpriteManager::PLAYER_WALKING_RIGHT, location);/g' game-source-code/Player.cpp
-
-echo "Updating Monster.cpp to use automatic scaling..."
-sed -i 's/spriteManager->drawSprite(spriteType, location);/spriteManager->drawSprite(spriteType, location);/g' game-source-code/Monster.cpp
-sed -i 's/spriteManager->drawSpriteFlipped(spriteType, location);/spriteManager->drawSpriteFlipped(spriteType, location);/g' game-source-code/Monster.cpp
-
-echo "Updating TerrainGrid.cpp to use automatic scaling..."
-sed -i 's/spriteManager->drawSprite(spriteType, worldPos);/spriteManager->drawSprite(spriteType, worldPos);/g' game-source-code/TerrainGrid.cpp
-
-echo "Building project with 2x scale rendering..."
-cd build
-cmake --build .
-cd ..
-
-echo ""
-echo "=== 2X SCALE RENDERING IMPLEMENTED ==="
-echo "All sprites now render at 2x their original size:"
-echo "  - Characters: 20x20 -> 40x40 pixels visual"
-echo "  - Terrain: 20x20 -> 40x40 pixels visual"
-echo "  - Effects: 30x30 -> 45x45 pixels visual"
-echo "  - UI: 16x16 -> 24x24 pixels visual"
-echo "  - Weapons: 2x scale proportionally"
-echo ""
-echo "Benefits:"
-echo "  ✅ No game logic changes needed"
-echo "  ✅ All collision detection unchanged"
-echo "  ✅ Grid system remains intact"
-echo "  ✅ Easy to maintain and modify"
-echo "  ✅ Better visual quality with larger sprites"
-echo ""
-echo "Updated sprite requirements (same files, better visual impact):"
-echo "  - Keep all existing 20x20 sprite files"
-echo "  - Game automatically scales them to 40x40 visual size"
-echo "  - No additional work needed for existing sprites"
-echo "  - Future sprites: create at 20x20, game scales automatically"

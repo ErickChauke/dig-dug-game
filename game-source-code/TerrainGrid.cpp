@@ -1,4 +1,5 @@
 #include "TerrainGrid.h"
+#include "SpriteManager.h"
 #include <fstream>
 #include <iostream>
 
@@ -174,19 +175,6 @@ void TerrainGrid::removeRockAt(const Position& pos) {
     }
 }
 
-void TerrainGrid::draw() const {
-    for (int x = 0; x < WORLD_WIDTH; x++) {
-        for (int y = 0; y < WORLD_HEIGHT; y++) {
-            Position worldPos(x, y);
-            Position pixelPos = worldPos.toPixels();
-            raylib::Color blockColor = getBlockColor(worldPos);
-            
-            DrawRectangle(pixelPos.x, pixelPos.y,
-                         Position::BLOCK_SIZE, Position::BLOCK_SIZE,
-                         blockColor);
-        }
-    }
-}
 
 void TerrainGrid::createDefaultLevel() {
     std::cout << "Creating default level with improved physics..." << std::endl;
@@ -299,5 +287,44 @@ raylib::Color TerrainGrid::getBlockColor(const Position& pos) const {
             return raylib::Color(128, 128, 128, 255); // Gray
         default:
             return raylib::Color(0, 0, 0, 255); // Black
+    }
+}
+void TerrainGrid::draw() const {
+    SpriteManager* spriteManager = SpriteManager::getInstance();
+    
+    for (int x = 0; x < WORLD_WIDTH; x++) {
+        for (int y = 0; y < WORLD_HEIGHT; y++) {
+            Position worldPos(x, y);
+            Position pixelPos = worldPos.toPixels();
+            
+            // Try to use sprites first
+            SpriteManager::SpriteType spriteType;
+            bool useSprite = false;
+            
+            switch (blocks[x][y]) {
+                case BlockType::SOLID:
+                    spriteType = SpriteManager::DIRT_BLOCK;
+                    useSprite = spriteManager->isSpriteLoaded(spriteType);
+                    break;
+                case BlockType::ROCK:
+                    spriteType = SpriteManager::ROCK_BLOCK;
+                    useSprite = spriteManager->isSpriteLoaded(spriteType);
+                    break;
+                case BlockType::EMPTY:
+                    spriteType = SpriteManager::TUNNEL_EMPTY;
+                    useSprite = spriteManager->isSpriteLoaded(spriteType);
+                    break;
+            }
+            
+            if (useSprite) {
+                spriteManager->drawSprite(spriteType, worldPos);
+            } else {
+                // Fallback to original color rectangles
+                raylib::Color blockColor = getBlockColor(worldPos);
+                DrawRectangle(pixelPos.x, pixelPos.y,
+                             Position::BLOCK_SIZE, Position::BLOCK_SIZE,
+                             blockColor);
+            }
+        }
     }
 }

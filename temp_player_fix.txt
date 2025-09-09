@@ -1,0 +1,42 @@
+        // Choose sprite based on state
+        if (powerUps.invulnerable) {
+            spriteType = SpriteManager::PLAYER_INVULNERABLE;
+        } else if (movingDirection != NONE) {
+            switch (facingDirection) {
+                case UP: spriteType = SpriteManager::PLAYER_WALKING_UP; break;
+                case DOWN: spriteType = SpriteManager::PLAYER_WALKING_DOWN; break;
+                case LEFT: 
+                    // Use flipped right sprite for left direction
+                    spriteManager->drawSpriteFlipped(SpriteManager::PLAYER_WALKING_RIGHT, location);
+                    // Draw power-up indicators and return
+                    {
+                        int yOffset = -15;
+                        if (powerUps.speedBoost) {
+                            DrawText(TextFormat("SPEED %.1f", powerUps.speedBoostTimer), 
+                                    pixelPos.x - 10, pixelPos.y + yOffset, 8, ORANGE);
+                            yOffset -= 10;
+                        }
+                        if (powerUps.extendedRange) {
+                            DrawText(TextFormat("RANGE %.1f", powerUps.extendedRangeTimer), 
+                                    pixelPos.x - 10, pixelPos.y + yOffset, 8, LIME);
+                            yOffset -= 10;
+                        }
+                        if (powerUps.rapidFire) {
+                            DrawText(TextFormat("RAPID %.1f", powerUps.rapidFireTimer), 
+                                    pixelPos.x - 10, pixelPos.y + yOffset, 8, RED);
+                            yOffset -= 10;
+                        }
+                        if (powerUps.invulnerable) {
+                            DrawText(TextFormat("SHIELD %.1f", powerUps.invulnerableTimer), 
+                                    pixelPos.x - 10, pixelPos.y + yOffset, 8, GOLD);
+                        }
+                        if (isReloading()) {
+                            DrawCircle(pixelPos.x + Position::BLOCK_SIZE/2, 
+                                       pixelPos.y - 5, 4, RED);
+                        }
+                    }
+                    return;
+                case RIGHT: spriteType = SpriteManager::PLAYER_WALKING_RIGHT; break;
+                default: spriteType = SpriteManager::PLAYER_IDLE; break;
+            }
+        }

@@ -13,6 +13,7 @@
 #include "FallingRock.h"
 #include "AudioManager.h"
 #include "AnimationManager.h"
+#include "SpriteManager.h"
 
 class Game {
 private:
@@ -47,6 +48,7 @@ private:
     
     // Audio and visual managers
     AudioManager* audioManager;
+    SpriteManager* spriteManager;
     AnimationManager animationManager;
     
     // Visual effects

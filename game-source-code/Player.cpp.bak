@@ -242,7 +242,7 @@ void Player::draw() const {
             switch (facingDirection) {
                 case UP: spriteType = SpriteManager::PLAYER_WALKING_UP; break;
                 case DOWN: spriteType = SpriteManager::PLAYER_WALKING_DOWN; break;
-                case LEFT: spriteManager->drawSpriteFlipped(SpriteManager::PLAYER_WALKING_RIGHT, location); return;
+                case LEFT: spriteType = SpriteManager::PLAYER_WALKING_LEFT; break;
                 case RIGHT: spriteType = SpriteManager::PLAYER_WALKING_RIGHT; break;
                 default: spriteType = SpriteManager::PLAYER_IDLE; break;
             }

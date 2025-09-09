@@ -1,4 +1,7 @@
 #include "Game.h"
+
+// Static member definition for SpriteManager
+SpriteManager* SpriteManager::instance = nullptr;
 #include <iostream>
 #include <cstdlib>
 
@@ -10,6 +13,8 @@ Game::Game() : showSplashScreen(true), splashTimer(0.0f),
     
     setupLevel();
     audioManager = AudioManager::getInstance();
+    spriteManager = SpriteManager::getInstance();
+    spriteManager->loadSprites();
     std::cout << "Dig Dug game initialized" << std::endl;
 }
 
